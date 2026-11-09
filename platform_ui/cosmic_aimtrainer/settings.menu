@@ -1,0 +1,783 @@
+resource/ui/menus/cosmic_aimtrainer/settings.menu
+{
+	menu
+	{
+		ControlName				Frame
+		xpos					0
+		ypos					0
+		zpos					3
+		wide					f0
+		tall					f0
+		autoResize				0
+		pinCorner				0
+		visible					1
+		enabled					1
+		tabPosition				0
+		PaintBackgroundType		0
+		infocus_bgcolor_override	"0 0 0 0"
+		outoffocus_bgcolor_override	"0 0 0 0"
+		modal					1
+
+		// UpdateMenuBlur needs direct children named ScreenBlur / DarkenBackground.
+		ScreenBlur
+		{
+			ControlName	Label
+			labelText	""
+		}
+
+		DarkenBackground
+		{
+			ControlName	RuiPanel
+			xpos	0
+			ypos	0
+			wide	%50
+			tall	%100
+			visible	1
+			rui	"ui/basic_image.rpak"
+			ruiArgs
+			{
+				basicImageColor	"0 0 0"
+				basicImageAlpha	0.9
+			}
+		}
+
+		Title
+		{
+			ControlName	Label
+			xpos	960
+			ypos	30
+			wide	930
+			tall	60
+			visible	1
+			fontHeight	60
+			labelText	"FLOWSTATE AIM TRAINER"
+			font	TitleBoldFont
+			allcaps	1
+			textAlignment	east
+			fgcolor_override	"191 13 13 255"
+			zpos	5
+		}
+
+		Background
+		{
+			ControlName	ImagePanel
+			xpos	0
+			ypos	0
+			wide	%50
+			tall	85
+			visible	1
+			scaleImage	1
+			fillColor	"0 0 0 170"
+			drawColor	"0 0 0 170"
+			zpos	1
+		}
+
+		Logo
+		{
+			ControlName	RuiPanel
+			InheritProperties	Logo
+			xpos	50
+			ypos	1
+			wide	110
+			tall	132
+			zpos	4
+		}
+
+		ChallengesTab
+		{
+			ControlName	RuiButton
+			InheritProperties	TabButtonShort
+			scriptID	0
+			xpos	200
+			ypos	18
+			wide	200
+			tall	50
+			zpos	5
+			visible	1
+			enabled	1
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+		}
+
+		SettingsTab
+		{
+			ControlName	RuiButton
+			InheritProperties	TabButtonShort
+			scriptID	1
+			xpos	405
+			ypos	18
+			wide	200
+			tall	50
+			zpos	5
+			visible	1
+			enabled	1
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+		}
+
+		MadeBy
+		{
+			ControlName	Label
+			xpos	1000
+			ypos	995
+			wide	880
+			tall	25
+			visible	1
+			fontHeight	25
+			labelText	"Original Aim Trainer by @CafeFPS  |  Flowstate port by pluscosmic"
+			font	DefaultBold_41
+			allcaps	0
+			textAlignment	east
+			fgcolor_override	"255 255 255 255"
+			zpos	5
+		}
+
+		MadeBy2
+		{
+			ControlName	Label
+			xpos	1000
+			ypos	1022
+			wide	880
+			tall	25
+			visible	1
+			fontHeight	25
+			labelText	"Powered by R5 Flowstate"
+			font	DefaultBold_41
+			allcaps	0
+			textAlignment	east
+			fgcolor_override	"255 255 255 255"
+			zpos	5
+		}
+
+		GameMenuButton
+		{
+			ControlName	RuiButton
+			InheritProperties	CornerButton
+			zpos	5
+			ypos	70
+			pin_to_sibling	MadeBy
+			pin_corner_to_sibling	TOP_RIGHT
+			pin_to_sibling_corner	TOP_RIGHT
+		}
+
+		WeaponSelector
+		{
+			ControlName	RuiButton
+			xpos	330
+			ypos	130
+			wide	300
+			tall	60
+			zpos	6
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		WeaponSelectorTxt
+		{
+			ControlName	Label
+			xpos	330
+			ypos	130
+			wide	300
+			tall	60
+			zpos	4
+			visible	1
+			labelText	"#FS_CHANGE_WEAPON"
+			textAlignment	center
+			font	TitleBoldFont
+			fontHeight	30
+			fgcolor_override	"255 255 255 255"
+		}
+
+		WeaponSelectorFrame
+		{
+			ControlName	ImagePanel
+			xpos	330
+			ypos	130
+			wide	300
+			tall	60
+			zpos	2
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		WeaponSelectorLine1
+		{
+			ControlName	ImagePanel
+			xpos	330
+			ypos	188
+			wide	300
+			tall	2
+			zpos	3
+			visible	1
+			scaleImage	1
+			fillColor	"255 255 255 200"
+			drawColor	"255 255 255 200"
+		}
+
+		WeaponSelectorLine2
+		{
+			ControlName	ImagePanel
+			xpos	330
+			ypos	130
+			wide	300
+			tall	2
+			zpos	3
+			visible	1
+			scaleImage	1
+			fillColor	"255 255 255 200"
+			drawColor	"255 255 255 200"
+		}
+
+		WeaponSelectorLine3
+		{
+			ControlName	ImagePanel
+			xpos	330
+			ypos	130
+			wide	2
+			tall	60
+			zpos	3
+			visible	1
+			scaleImage	1
+			fillColor	"255 255 255 200"
+			drawColor	"255 255 255 200"
+		}
+
+		WeaponSelectorLine4
+		{
+			ControlName	ImagePanel
+			xpos	628
+			ypos	130
+			wide	2
+			tall	60
+			zpos	3
+			visible	1
+			scaleImage	1
+			fillColor	"255 255 255 200"
+			drawColor	"255 255 255 200"
+		}
+
+		ShieldText
+		{
+			ControlName	Label
+			xpos	20
+			ypos	225
+			wide	400
+			tall	60
+			visible	1
+			zpos	5
+			labelText	"Dummies shield level*"
+			font	Default_27
+			fontHeight	30
+			textAlignment	east
+			fgcolor_override	"255 255 255 255"
+			classname	"SettingsBtn"
+		}
+
+		ShieldSwitch
+		{
+			ControlName	RuiButton
+			InheritProperties	SwitchButton
+			style	DialogListButton
+			classname	"SettingsBtn"
+			xpos	400
+			wide	360
+			zpos	6
+			list
+			{
+				"No shields"	0
+				"Level 1 (White)"	1
+				"Level 2 (Blue)"	2
+				"Level 3 (Purple)"	3
+				"Level 4 (Red)"	4
+			}
+			childGroupAlways	MultiChoiceButtonAlways
+			pin_to_sibling	ShieldText
+			pin_corner_to_sibling	RIGHT
+			pin_to_sibling_corner	RIGHT
+		}
+
+		HealthText
+		{
+			ControlName	Label
+			xpos	20
+			ypos	300
+			wide	400
+			tall	60
+			visible	1
+			zpos	5
+			labelText	"Dummies health"
+			font	Default_27
+			fontHeight	30
+			textAlignment	east
+			fgcolor_override	"255 255 255 255"
+			classname	"SettingsBtn"
+		}
+
+		HealthSlider
+		{
+			ControlName	SliderControl
+			InheritProperties	SliderControl
+			classname	"SettingsBtn"
+			xpos	400
+			wide	360
+			zpos	6
+			tabPosition	0
+			minValue	1
+			maxValue	100
+			stepSize	1
+			showConVarAsFloat	0
+			pin_to_sibling	HealthText
+			pin_corner_to_sibling	RIGHT
+			pin_to_sibling_corner	RIGHT
+		}
+
+		HealthEntry
+		{
+			ControlName	TextEntry
+			InheritProperties	SliderControlTextEntry
+			classname	"SettingsBtn"
+			xpos	0
+			wide	55
+			zpos	7
+			NumericInputOnly	1
+			maxchars	3
+			skipFontSizeAdjustment	1
+			pin_to_sibling	HealthSlider
+			pin_corner_to_sibling	RIGHT
+			pin_to_sibling_corner	RIGHT
+		}
+
+		SpeedText
+		{
+			ControlName	Label
+			xpos	20
+			ypos	375
+			wide	400
+			tall	60
+			visible	1
+			zpos	5
+			labelText	"Dummies strafing speed*"
+			font	Default_27
+			fontHeight	30
+			textAlignment	east
+			fgcolor_override	"255 255 255 255"
+			classname	"SettingsBtn"
+		}
+
+		SpeedSwitch
+		{
+			ControlName	RuiButton
+			InheritProperties	SwitchButton
+			style	DialogListButton
+			classname	"SettingsBtn"
+			xpos	400
+			wide	360
+			zpos	6
+			list
+			{
+				"Static"	0
+				"Slow"	1
+				"Normal"	2
+				"Fast"	3
+				"Demon"	4
+			}
+			childGroupAlways	MultiChoiceButtonAlways
+			pin_to_sibling	SpeedText
+			pin_corner_to_sibling	RIGHT
+			pin_to_sibling_corner	RIGHT
+		}
+
+		DistanceText
+		{
+			ControlName	Label
+			xpos	20
+			ypos	450
+			wide	400
+			tall	60
+			visible	1
+			zpos	5
+			labelText	"Dummies spawn distance"
+			font	Default_27
+			fontHeight	30
+			textAlignment	east
+			fgcolor_override	"255 255 255 255"
+			classname	"SettingsBtn"
+		}
+
+		DistanceSlider
+		{
+			ControlName	SliderControl
+			InheritProperties	SliderControl
+			classname	"SettingsBtn"
+			xpos	400
+			wide	360
+			zpos	6
+			tabPosition	0
+			minValue	1
+			maxValue	20
+			stepSize	1
+			showConVarAsFloat	0
+			pin_to_sibling	DistanceText
+			pin_corner_to_sibling	RIGHT
+			pin_to_sibling_corner	RIGHT
+		}
+
+		DistanceEntry
+		{
+			ControlName	TextEntry
+			InheritProperties	SliderControlTextEntry
+			classname	"SettingsBtn"
+			xpos	0
+			wide	55
+			zpos	7
+			NumericInputOnly	1
+			maxchars	2
+			skipFontSizeAdjustment	1
+			pin_to_sibling	DistanceSlider
+			pin_corner_to_sibling	RIGHT
+			pin_to_sibling_corner	RIGHT
+		}
+
+		ImmortalText
+		{
+			ControlName	Label
+			xpos	20
+			ypos	525
+			wide	400
+			tall	60
+			visible	1
+			zpos	5
+			labelText	"#FS_INVINCIBLE_TARGETS"
+			font	Default_27
+			fontHeight	30
+			textAlignment	east
+			fgcolor_override	"255 255 255 255"
+			classname	"SettingsBtn"
+		}
+
+		ImmortalSwitch
+		{
+			ControlName	RuiButton
+			InheritProperties	SwitchButton
+			style	DialogListButton
+			classname	"SettingsBtn"
+			xpos	400
+			wide	360
+			zpos	6
+			list
+			{
+				"Disable"	0
+				"Enable"	1
+			}
+			childGroupAlways	ChoiceButtonAlways
+			pin_to_sibling	ImmortalText
+			pin_corner_to_sibling	RIGHT
+			pin_to_sibling_corner	RIGHT
+		}
+
+		ReloadHitText
+		{
+			ControlName	Label
+			xpos	20
+			ypos	600
+			wide	400
+			tall	60
+			visible	1
+			zpos	5
+			labelText	"#FS_AUTORELOAD_ON_HIT"
+			font	Default_27
+			fontHeight	30
+			textAlignment	east
+			fgcolor_override	"255 255 255 255"
+			classname	"SettingsBtn"
+		}
+
+		ReloadHitSwitch
+		{
+			ControlName	RuiButton
+			InheritProperties	SwitchButton
+			style	DialogListButton
+			classname	"SettingsBtn"
+			xpos	400
+			wide	360
+			zpos	6
+			list
+			{
+				"Disable"	0
+				"Enable"	1
+			}
+			childGroupAlways	ChoiceButtonAlways
+			pin_to_sibling	ReloadHitText
+			pin_corner_to_sibling	RIGHT
+			pin_to_sibling_corner	RIGHT
+		}
+
+		ReloadKillText
+		{
+			ControlName	Label
+			xpos	20
+			ypos	675
+			wide	400
+			tall	60
+			visible	1
+			zpos	5
+			labelText	"#FS_AUTORELOAD_ON_KILL"
+			font	Default_27
+			fontHeight	30
+			textAlignment	east
+			fgcolor_override	"255 255 255 255"
+			classname	"SettingsBtn"
+		}
+
+		ReloadKillSwitch
+		{
+			ControlName	RuiButton
+			InheritProperties	SwitchButton
+			style	DialogListButton
+			classname	"SettingsBtn"
+			xpos	400
+			wide	360
+			zpos	6
+			list
+			{
+				"Disable"	0
+				"Enable"	1
+			}
+			childGroupAlways	ChoiceButtonAlways
+			pin_to_sibling	ReloadKillText
+			pin_corner_to_sibling	RIGHT
+			pin_to_sibling_corner	RIGHT
+		}
+
+		ColorText
+		{
+			ControlName	Label
+			xpos	20
+			ypos	225
+			wide	400
+			tall	60
+			visible	1
+			zpos	5
+			labelText	"Dummies color"
+			font	Default_27
+			fontHeight	30
+			textAlignment	east
+			fgcolor_override	"255 255 255 255"
+			classname	"SettingsBtn2"
+		}
+
+		ColorSwitch
+		{
+			ControlName	RuiButton
+			InheritProperties	SwitchButton
+			style	DialogListButton
+			classname	"SettingsBtn2"
+			xpos	400
+			wide	360
+			zpos	6
+			list
+			{
+				"Grey"	0
+				"Red"	1
+				"Green"	2
+				"Blue"	3
+				"Yellow"	4
+				"Random"	5
+			}
+			childGroupAlways	MultiChoiceButtonAlways
+			pin_to_sibling	ColorText
+			pin_corner_to_sibling	RIGHT
+			pin_to_sibling_corner	RIGHT
+		}
+
+		InfiniteText
+		{
+			ControlName	Label
+			xpos	20
+			ypos	300
+			wide	400
+			tall	60
+			visible	1
+			zpos	5
+			labelText	"#FS_INFINITE_TRAINING"
+			font	Default_27
+			fontHeight	30
+			textAlignment	east
+			fgcolor_override	"255 255 255 255"
+			classname	"SettingsBtn2"
+		}
+
+		InfiniteSwitch
+		{
+			ControlName	RuiButton
+			InheritProperties	SwitchButton
+			style	DialogListButton
+			classname	"SettingsBtn2"
+			xpos	400
+			wide	360
+			zpos	6
+			list
+			{
+				"Disable"	0
+				"Enable"	1
+			}
+			childGroupAlways	ChoiceButtonAlways
+			pin_to_sibling	InfiniteText
+			pin_corner_to_sibling	RIGHT
+			pin_to_sibling_corner	RIGHT
+		}
+
+		DurationText
+		{
+			ControlName	Label
+			xpos	20
+			ypos	375
+			wide	400
+			tall	60
+			visible	1
+			zpos	5
+			labelText	"#FS_CHALLENGES_DURATION"
+			font	Default_27
+			fontHeight	30
+			textAlignment	east
+			fgcolor_override	"255 255 255 255"
+			classname	"SettingsBtn2"
+		}
+
+		DurationUnits
+		{
+			ControlName	Label
+			xpos	460
+			ypos	375
+			wide	220
+			tall	60
+			visible	1
+			zpos	5
+			labelText	"Seconds (10 - 600)"
+			font	Default_27
+			fontHeight	24
+			textAlignment	west
+			fgcolor_override	"200 200 200 255"
+			classname	"SettingsBtn2"
+		}
+
+		DurationEntry
+		{
+			ControlName	TextEntry
+			InheritProperties	SliderControlTextEntry
+			classname	"SettingsBtn2"
+			xpos	400
+			wide	120
+			zpos	7
+			NumericInputOnly	1
+			maxchars	3
+			skipFontSizeAdjustment	1
+			pin_to_sibling	DurationText
+			pin_corner_to_sibling	RIGHT
+			pin_to_sibling_corner	RIGHT
+		}
+
+		Pages
+		{
+			ControlName	Label
+			xpos	380
+			ypos	770
+			wide	200
+			tall	35
+			zpos	7
+			visible	1
+			labelText	"  Page: 1/2  "
+			font	DefaultBold_41
+			allcaps	1
+			fontHeight	30
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		NextPageButton
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			wide	100
+			tall	35
+			xpos	0
+			ypos	0
+			zpos	6
+			visible	1
+			enabled	1
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	">>>"
+			}
+			pin_to_sibling	Pages
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	RIGHT
+		}
+
+		PrevPageButton
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			wide	100
+			tall	35
+			xpos	0
+			ypos	0
+			zpos	6
+			visible	1
+			enabled	1
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"<<<"
+			}
+			pin_to_sibling	Pages
+			pin_corner_to_sibling	RIGHT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Hint
+		{
+			ControlName	Label
+			xpos	400
+			ypos	1005
+			wide	545
+			tall	60
+			visible	1
+			zpos	5
+			labelText	"#FS_FOR_SUPPORTED_CHALLENGES"
+			font	Default_27
+			fontHeight	23
+			textAlignment	east
+			fgcolor_override	"255 255 255 255"
+		}
+
+		ResetButton
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	15
+			ypos	1025
+			wide	240
+			tall	40
+			zpos	6
+			visible	1
+			enabled	1
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"Reset to defaults"
+			}
+		}
+	}
+}

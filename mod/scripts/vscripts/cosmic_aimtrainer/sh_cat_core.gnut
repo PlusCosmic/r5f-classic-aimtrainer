@@ -1,0 +1,319 @@
+// Cosmic Aim Trainer -- shared core (SERVER, CLIENT, UI).
+//
+// Port of the R5Reloaded Flowstate Aim Trainer ("Challenges by Colombia") to
+// R5 Flowstate as a self-contained mod. Everything global is prefixed CAT_.
+//
+// Entry points: the mod system calls <VM prefix>_Cosmic_AimTrainer_ModInit in
+// each VM. On SERVER/CLIENT that happens right after RemoteFunctions_Init_Begin,
+// so this file registers its remote functions there (same order on both VMs).
+//
+// Drill ids keep the original R5R numbering so old result exports line up.
+
+global function CodeCallback_Cosmic_AimTrainer_ModInit
+global function ClientCodeCallback_Cosmic_AimTrainer_ModInit
+global function UICodeCallback_Cosmic_AimTrainer_ModInit
+
+global function CAT_IsEnabled
+global function CAT_GetDrill
+global function CAT_GetAllDrills
+global function CAT_IsValidDrill
+global function CAT_SpeedSelectorToRate
+global function CAT_ShieldLevelToAmount
+global function CAT_SettingKeys
+global function CAT_ClampSetting
+global function CAT_DefaultSetting
+
+global const string CAT_PLAYLIST_VAR = "cosmic_aimtrainer_enabled"
+global const string CAT_CLIENT_COMMAND = "cosmic_aimtrainer"
+global const string CAT_LOG = "[CosmicAimTrainer]"
+
+global const float CAT_PRE_START_TIME = 3.0
+global const int CAT_INFINITE_DURATION = 0
+
+global const string CAT_SIGNAL_TIME_OVER = "CAT_ChallengeTimeOver"
+global const string CAT_SIGNAL_RESULTS_DONE = "CAT_ResultsDone"
+global const string CAT_SIGNAL_STOP_CAMERA = "CAT_StopMenuCamera"
+
+// Original R5R ids. 5 was never used; 18 (dropship) was never implemented.
+global enum eCATDrill
+{
+	NONE = 0,
+	STRAFING_DUMMY = 1,
+	TARGET_SWITCHING = 2,
+	FLOATING_TARGET = 3,
+	POPCORN = 4,
+	TAPY_DUCK_STRAFES = 6,
+	ARCSTARS = 7,
+	LIFT = 8,
+	VALK_ULT = 9,
+	TILE_FRENZY = 10,
+	CLOSE_FAST_STRAFES = 11,
+	SMOOTHBOT = 12,
+	BOUNCES = 13,
+	GRENADES = 14,
+	SKYDIVE = 15,
+	RUNNING_TARGETS = 16,
+	ARMOR_SWAP = 17,
+
+	_count = 18 // exclusive upper bound for networking
+}
+
+// Where the drill puts the player. Sky drills build a floor in the air.
+global enum eCATArena
+{
+	GROUND,
+	SKY,
+}
+
+global struct CATDrillDef
+{
+	int id
+	string name
+	string description
+	int arena
+	bool usesTimer = true
+	bool usesLiveStats = true
+	bool enabled = true
+	// Short tag for the menu ("New!", "Beta").
+	string tag
+}
+
+// Per-player settings. Keys match the "set" client command and the ConVars
+// cosmic_aimtrainer_<key> declared in mod.vdf.
+global struct CATSettings
+{
+	int duration = 60          // seconds, 10..600
+	bool infinite = false      // ignore duration, run until exit
+	int shield = 0             // 0..4 -> 0/50/75/100/125
+	int speed = 2              // selector 0..4 -> 0/0.85/1/1.35/1.8
+	int distance = 1           // spawn distance multiplier (x100 units), 1..20
+	int health = 100           // dummy health, 1..100
+	int color = 5              // dummy skin 0..4, 5 = random
+	bool immortal = false      // restore targets after each hit
+	bool refillOnHit = true    // refill ammo on every hit (original "infinite ammo")
+	bool refillOnKill = false  // refill ammo on kill (original "infinite ammo 2")
+}
+
+struct
+{
+	table<int, CATDrillDef> drills
+	array<int> order
+	bool inited = false
+} file
+
+// --------------------------------------------------------------------------
+// Mod entry points
+
+void function CodeCallback_Cosmic_AimTrainer_ModInit()
+{
+	CAT_SharedInit()
+	CAT_RegisterNetworking()
+	#if SERVER
+		// Warning() so it reaches platform/logs/server/<id>/script_warning.log;
+		// plain printt output isn't written to the dedicated server's log files.
+		Warning( CAT_LOG + " server ModInit, playlist enabled=" + CAT_IsEnabled() + " map=" + GetMapName() )
+		if ( CAT_IsEnabled() )
+			CAT_ServerInit()
+	#endif
+}
+
+void function ClientCodeCallback_Cosmic_AimTrainer_ModInit()
+{
+	CAT_SharedInit()
+	CAT_RegisterNetworking()
+	#if CLIENT
+		if ( CAT_IsEnabled() )
+			CAT_ClientInit()
+	#endif
+}
+
+void function UICodeCallback_Cosmic_AimTrainer_ModInit()
+{
+	CAT_SharedInit()
+	#if UI
+		CAT_UIInit()
+	#endif
+}
+
+void function CAT_SharedInit()
+{
+	if ( file.inited )
+		return
+	file.inited = true
+
+	#if SERVER || CLIENT
+		RegisterSignal( CAT_SIGNAL_TIME_OVER )
+		RegisterSignal( CAT_SIGNAL_RESULTS_DONE )
+		RegisterSignal( CAT_SIGNAL_STOP_CAMERA )
+	#endif
+
+	CAT_RegisterDrills()
+}
+
+// Must be identical on SERVER and CLIENT: registration order is the wire index.
+// Registered on every playlist so indices never depend on the playlist.
+void function CAT_RegisterNetworking()
+{
+	#if SERVER || CLIENT
+		// Menu flow
+		Remote_RegisterClientFunction( "CAT_CL_OpenMainMenu", "int", 0, INT_MAX )
+		Remote_RegisterClientFunction( "CAT_CL_SetChallengeActive", "bool" )
+		// drillId, duration (0 = infinite)
+		Remote_RegisterClientFunction( "CAT_CL_ChallengeStarting", "int", 0, eCATDrill._count, "int", 0, 1001 )
+		// drillId, hits, kills, accuracy, damage, crits, best, isNewBest, totalShots
+		Remote_RegisterClientFunction( "CAT_CL_ShowResults", "int", 0, eCATDrill._count, "int", 0, INT_MAX, "int", 0, INT_MAX, "float", 0.0, 1.0, 16, "int", 0, INT_MAX, "int", 0, INT_MAX, "int", 0, INT_MAX, "bool", "int", 0, INT_MAX )
+		Remote_RegisterClientFunction( "CAT_CL_CloseResults" )
+		Remote_RegisterClientFunction( "CAT_CL_RestartChallenge", "int", 0, eCATDrill._count )
+
+		// Live stats
+		Remote_RegisterClientFunction( "CAT_CL_LiveKills", "int", 0, INT_MAX )
+		// pellets, possible damage of this shot
+		Remote_RegisterClientFunction( "CAT_CL_LiveShot", "int", 0, 1024, "int", 0, 65536 )
+		Remote_RegisterClientFunction( "CAT_CL_LiveHit", "int", 0, 65536 )
+		Remote_RegisterClientFunction( "CAT_CL_LiveCrits", "int", 0, INT_MAX )
+		Remote_RegisterClientFunction( "CAT_CL_ResetLive" )
+
+		// Drill helpers
+		Remote_RegisterClientFunction( "CAT_CL_GrenadeMarker", "entity" )
+
+		// Damage that isn't a scoring hit (floating target on the floor)
+		Remote_RegisterClientFunction( "CAT_CL_LiveDamage", "int", 0, 65536 )
+	#endif
+}
+
+// UI VM lives across levels: call this lazily there, never cache it at init.
+bool function CAT_IsEnabled()
+{
+	return GetCurrentPlaylistVarBool( CAT_PLAYLIST_VAR, false )
+}
+
+// --------------------------------------------------------------------------
+// Drill registry
+
+void function CAT_AddDrill( int id, string name, string description, int arena, string tag = "", bool usesTimer = true, bool usesLiveStats = true, bool enabled = true )
+{
+	CATDrillDef d
+	d.id = id
+	d.name = name
+	d.description = description
+	d.arena = arena
+	d.tag = tag
+	d.usesTimer = usesTimer
+	d.usesLiveStats = usesLiveStats
+	d.enabled = enabled
+	file.drills[ id ] <- d
+	file.order.append( id )
+}
+
+void function CAT_RegisterDrills()
+{
+	// Column 1 of the original menu
+	CAT_AddDrill( eCATDrill.STRAFING_DUMMY, "STRAFING DUMMY", "Track a dummy strafing left and right in front of you.", eCATArena.GROUND )
+	CAT_AddDrill( eCATDrill.TARGET_SWITCHING, "TARGET SWITCHING", "Several dummies move around you. Switch between them fast.", eCATArena.GROUND )
+	CAT_AddDrill( eCATDrill.FLOATING_TARGET, "FLOATING TARGET", "Keep an immortal dummy in the air. Only hits while it is airborne count.", eCATArena.SKY )
+	CAT_AddDrill( eCATDrill.POPCORN, "POPCORN TARGETS", "Dummies bounce off the floor. Hit them mid-air.", eCATArena.SKY )
+	CAT_AddDrill( eCATDrill.TILE_FRENZY, "TILE FRENZY", "Flick between targets on a wall. You can't move.", eCATArena.SKY )
+	CAT_AddDrill( eCATDrill.CLOSE_FAST_STRAFES, "CLOSE FAST STRAFES", "A close dummy snaps between positions very fast.", eCATArena.SKY )
+	CAT_AddDrill( eCATDrill.SMOOTHBOT, "SMOOTHBOT", "Track a target sweeping smooth arcs above and below you.", eCATArena.SKY )
+	CAT_AddDrill( eCATDrill.BOUNCES, "BOUNCES SIMULATOR", "Popcorn targets, but you are bouncing too.", eCATArena.SKY, "New!" )
+
+	// Column 2
+	CAT_AddDrill( eCATDrill.TAPY_DUCK_STRAFES, "FAST JUMPS STRAFES", "Avoid death by killing the dummy. It strafes and jumps fast.", eCATArena.SKY )
+	CAT_AddDrill( eCATDrill.ARCSTARS, "ARC STARS PRACTICE", "Stick arc stars on running dummies.", eCATArena.GROUND )
+	CAT_AddDrill( eCATDrill.GRENADES, "GRENADES PRACTICE", "Hit static dummies far away with frag grenades. You can't move.", eCATArena.SKY, "Beta" )
+	CAT_AddDrill( eCATDrill.VALK_ULT, "SHOOTING VALK'S ULT", "Dummies launch upward like a Valkyrie ultimate. Shoot them on the way up.", eCATArena.SKY )
+	CAT_AddDrill( eCATDrill.LIFT, "SHOOTING FROM LIFT", "Shoot running dummies while riding a gravity lift.", eCATArena.GROUND )
+	CAT_AddDrill( eCATDrill.SKYDIVE, "SKYDIVING TARGETS", "Shoot dummies skydiving down around you.", eCATArena.SKY, "Beta" )
+	CAT_AddDrill( eCATDrill.RUNNING_TARGETS, "RUNNING TARGETS", "Lots of dummies sprinting around you.", eCATArena.GROUND )
+	CAT_AddDrill( eCATDrill.ARMOR_SWAP, "ARMOR SWAP", "Swap armor from death boxes as fast as you can.", eCATArena.GROUND, "", false, false, false ) // milestone 2
+}
+
+CATDrillDef function CAT_GetDrill( int id )
+{
+	Assert( id in file.drills, "unknown drill " + id )
+	return file.drills[ id ]
+}
+
+bool function CAT_IsValidDrill( int id )
+{
+	return ( id in file.drills ) && file.drills[ id ].enabled
+}
+
+array<CATDrillDef> function CAT_GetAllDrills()
+{
+	array<CATDrillDef> result
+	foreach ( int id in file.order )
+		result.append( file.drills[ id ] )
+	return result
+}
+
+// --------------------------------------------------------------------------
+// Settings helpers (shared so UI, client and server agree on ranges)
+
+array<string> function CAT_SettingKeys()
+{
+	return [ "duration", "infinite", "shield", "speed", "distance", "health", "color", "immortal", "reloadhit", "reloadkill" ]
+}
+
+int function CAT_DefaultSetting( string key )
+{
+	CATSettings s
+	switch ( key )
+	{
+		case "duration": return s.duration
+		case "infinite": return s.infinite ? 1 : 0
+		case "shield": return s.shield
+		case "speed": return s.speed
+		case "distance": return s.distance
+		case "health": return s.health
+		case "color": return s.color
+		case "immortal": return s.immortal ? 1 : 0
+		case "reloadhit": return s.refillOnHit ? 1 : 0
+		case "reloadkill": return s.refillOnKill ? 1 : 0
+	}
+	return 0
+}
+
+int function CAT_ClampSetting( string key, int value )
+{
+	switch ( key )
+	{
+		case "duration": return ClampInt( value, 10, 600 )
+		case "shield": return ClampInt( value, 0, 4 )
+		case "speed": return ClampInt( value, 0, 4 )
+		case "distance": return ClampInt( value, 1, 20 )
+		case "health": return ClampInt( value, 1, 100 )
+		case "color": return ClampInt( value, 0, 5 )
+		case "infinite":
+		case "immortal":
+		case "reloadhit":
+		case "reloadkill":
+			return value != 0 ? 1 : 0
+	}
+	return value
+}
+
+float function CAT_SpeedSelectorToRate( int selector )
+{
+	switch ( selector )
+	{
+		case 0: return 0.0
+		case 1: return 0.85
+		case 2: return 1.0
+		case 3: return 1.35
+		case 4: return 1.8
+	}
+	return 1.0
+}
+
+int function CAT_ShieldLevelToAmount( int level )
+{
+	switch ( level )
+	{
+		case 1: return 50
+		case 2: return 75
+		case 3: return 100
+		case 4: return 125
+	}
+	return 0
+}

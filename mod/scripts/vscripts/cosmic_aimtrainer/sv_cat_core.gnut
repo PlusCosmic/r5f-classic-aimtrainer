@@ -1,0 +1,1036 @@
+// Cosmic Aim Trainer -- server core.
+//
+// Owns per-player sessions (the original kept everything in globals, so one
+// player's settings or targets leaked into everyone's). Drill files register
+// a start function with CAT_RegisterDrillStart and use the helpers below.
+//
+// Drill contract:
+//   - The start function is waitthread'ed by a thread whose OnThreadEnd
+//     finishes the challenge. EndSignals don't carry into a waitthread child,
+//     so start with player.EndSignal( "OnDestroy" ) and
+//     player.EndSignal( CAT_SIGNAL_TIME_OVER ). Just return when done.
+//   - Teleport with CAT_TeleportPlayer, then call CAT_WaitForStart( player ).
+//   - Loop while CAT_IsRunning( player ).
+//   - Spawn dummies with CAT_SpawnDummy (tracked + cleaned up automatically)
+//     and props with CAT_CreateProp / CAT_TrackEnt.
+//   - Count stats with CAT_AddHit / CAT_AddKill (or let the default damage
+//     handler do it).
+
+global function CAT_ServerInit
+global function CAT_RegisterDrillStart
+
+global struct CATSession
+{
+	bool active = false
+	int drillId = 0
+	float endTime = 0.0
+	bool restarting = false
+	bool awaitingResults = false
+
+	// live stats for the current challenge
+	int kills = 0
+	int shotsHit = 0
+	int totalShots = 0
+	int damage = 0
+	int crits = 0
+	int possibleDamage = 0
+
+	int sessionKills = 0          // across all challenges this connection
+	table<int, int> bestScores = {}   // drill id -> best shots hit (this connection)
+
+	CATSettings settings
+	int arenaSlot = 0
+
+	array<entity> ents           // everything spawned for this challenge
+	array<entity> dummies        // live targets (subset of ents)
+
+	// Loadout snapshot taken when the challenge starts.
+	array<string> weaponNames
+	array< array<string> > weaponMods
+	array<int> weaponSlots
+}
+
+global function CAT_GetSession
+global function CAT_HasSession
+global function CAT_IsRunning
+global function CAT_TeleportPlayer
+global function CAT_WaitForStart
+global function CAT_GetGroundPos
+global function CAT_GetGroundAngles
+global function CAT_GetSkyFloorOrigin
+global function CAT_GetSkyPlayerPos
+global function CAT_BuildSkyFloor
+global function CAT_CreateFloor
+global function CAT_CreateWall
+global function CAT_CreateProp
+global function CAT_TrackEnt
+global function CAT_SpawnDummy
+global function CAT_SetupCommonDummy
+global function CAT_UntrackDummy
+global function CAT_GetDummies
+global function CAT_AddHit
+global function CAT_AddKill
+global function CAT_AddDamageOnly
+global function CAT_OnTargetDamaged_Default
+global function CAT_OnTargetKilled_Default
+global function CAT_ApplyFakeHelmet
+global function CAT_StrafeRate
+global function CAT_StrafeWaitScale
+global function CAT_SpawnDistance
+global function CAT_OriginToGround
+global function CAT_PosCanContainDummy
+global function CAT_GiveDrillWeapon
+global function CAT_RestoreLoadout
+
+const asset CAT_FLOOR_TILE = $"mdl/thunderdome/thunderdome_cage_ceiling_256x256_06.rmdl"
+const asset CAT_WALL_TILE = $"mdl/thunderdome/thunderdome_cage_wall_256x256_01.rmdl"
+const asset CAT_SPAWN_FX = $"P_impact_shieldbreaker_sparks"
+const int CAT_SKY_FLOOR_TILES = 30
+const float CAT_SKY_SLOT_SPACING = 9000.0
+const int CAT_MAX_ARENA_SLOTS = 8
+
+global const string CAT_DEFAULT_WEAPON = "mp_weapon_wingman"
+global const array<string> CAT_DEFAULT_MODS = [ "optic_cq_hcog_classic" ]
+
+struct CATMapPositions
+{
+	bool known = false
+	vector skyFloor
+	vector groundPos
+	vector groundAng
+	vector startPos
+	vector startAng
+}
+
+struct
+{
+	table<entity, CATSession> sessions
+	table<int, void functionref( entity )> drillStarts
+	CATMapPositions map
+	array<bool> slotsUsed
+	float helmetLv4 = 0.65
+} file
+
+// --------------------------------------------------------------------------
+// Init
+
+void function CAT_ServerInit()
+{
+	printt( CAT_LOG, "server init, map", GetMapName() )
+
+	file.helmetLv4 = GetCurrentPlaylistVarFloat( "helmet_lv4", 0.65 )
+	for ( int i = 0; i < CAT_MAX_ARENA_SLOTS; i++ )
+		file.slotsUsed.append( false )
+
+	PrecacheModel( CAT_FLOOR_TILE )
+	PrecacheModel( CAT_WALL_TILE )
+	PrecacheModel( $"mdl/dev/empty_model.rmdl" )
+	PrecacheParticleSystem( CAT_SPAWN_FX )
+
+	CAT_LoadMapPositions()
+
+	AddClientCommandCallback( CAT_CLIENT_COMMAND, CAT_ClientCommand )
+	AddCallback_OnClientConnected( CAT_OnClientConnected )
+	AddCallback_OnClientDisconnected( CAT_OnClientDisconnected )
+	AddCallback_OnWeaponAttack( CAT_OnWeaponAttack )
+	AddDeathCallback( "player", CAT_OnPlayerDied )
+
+	CAT_DrillsGround_Init()
+	CAT_DrillsSky_Init()
+}
+
+void function CAT_RegisterDrillStart( int drillId, void functionref( entity ) startFn )
+{
+	file.drillStarts[ drillId ] <- startFn
+}
+
+// Hard-coded positions from the original where the map is the same geometry.
+// Other maps fall back to the player's spawn; use "cosmic_aimtrainer pos" in
+// game (sv_cheats 1) to print positions for a new map and add them here.
+void function CAT_LoadMapPositions()
+{
+	switch ( GetMapName() )
+	{
+		case "mp_rr_canyonlands_staging":
+			file.map.known = true
+			file.map.skyFloor = <35306.2344, -16956.5098, -27010.2539>
+			file.map.groundPos = <33946, -6511, -28859>
+			file.map.groundAng = <0, -90, 0>
+			file.map.startPos = <32645.04, -9575.77, -25911.94>
+			file.map.startAng = <7.71, 91.67, 0.00>
+			break
+
+		// TODO: S21 versions of the original maps. The R5R coordinates are kept
+		// as a starting point but have not been checked against the new geometry.
+		case "mp_rr_desertlands_hu":
+			file.map.known = false
+			file.map.skyFloor = <-10020.1543, -8643.02832, 5189.92578>
+			file.map.groundPos = <12891.2783, -2391.77124, -3121.60132>
+			file.map.groundAng = <0, -157.629303, 0>
+			file.map.startPos = <10623.7773, 4953.48975, -4303.92041>
+			file.map.startAng = <0, 143.031052, 0>
+			break
+
+		case "mp_rr_canyonlands_hu":
+			file.map.known = false
+			file.map.skyFloor = <-11964.7803, -8858.25098, 17252.25>
+			file.map.groundPos = <-14599.2178, -7073.89551, 2703.93286>
+			file.map.groundAng = <0, 90, 0>
+			file.map.startPos = <-16613.873, -487.12088, 3312.10791>
+			file.map.startAng = <0, 144.184357, 0>
+			break
+
+		case "mp_rr_olympus_mu2":
+			file.map.known = false
+			file.map.skyFloor = <9857.08496, -7948.96631, -1000>
+			file.map.groundPos = <-13700.8594, 26238.1387, -6891.95508>
+			file.map.groundAng = <0, 175.306152, 0>
+			file.map.startPos = <-34234.2148, 9426.86426, -5563.96875>
+			file.map.startAng = <0, 69.2027512, 0>
+			break
+	}
+	if ( !file.map.known )
+		printt( CAT_LOG, "no verified positions for", GetMapName(), "- unverified/spawn-relative fallback in use" )
+}
+
+// --------------------------------------------------------------------------
+// Sessions
+
+CATSession function CAT_GetSession( entity player )
+{
+	Assert( player in file.sessions )
+	return file.sessions[ player ]
+}
+
+bool function CAT_HasSession( entity player )
+{
+	return IsValid( player ) && ( player in file.sessions )
+}
+
+bool function CAT_IsRunning( entity player )
+{
+	if ( !CAT_HasSession( player ) )
+		return false
+	CATSession s = file.sessions[ player ]
+	if ( !s.active )
+		return false
+	if ( s.settings.infinite || !CAT_GetDrill( s.drillId ).usesTimer )
+		return true
+	return Time() <= s.endTime
+}
+
+void function CAT_OnClientConnected( entity player )
+{
+	CATSession s
+	for ( int i = 0; i < CAT_MAX_ARENA_SLOTS; i++ )
+	{
+		if ( !file.slotsUsed[ i ] )
+		{
+			file.slotsUsed[ i ] = true
+			s.arenaSlot = i
+			break
+		}
+	}
+	file.sessions[ player ] <- s
+	thread CAT_OnClientConnected_Thread( player )
+}
+
+void function CAT_OnClientConnected_Thread( entity player )
+{
+	player.EndSignal( "OnDestroy" )
+
+	// Let survival spawn the player first.
+	while ( !IsAlive( player ) )
+		WaitFrame()
+	WaitFrame()
+
+	CAT_SendToMenu( player )
+}
+
+void function CAT_OnClientDisconnected( entity player )
+{
+	if ( !( player in file.sessions ) )
+		return
+	CATSession s = file.sessions[ player ]
+	CAT_CleanupEntities( s )
+	if ( s.arenaSlot >= 0 && s.arenaSlot < CAT_MAX_ARENA_SLOTS )
+		file.slotsUsed[ s.arenaSlot ] = false
+	delete file.sessions[ player ]
+}
+
+// Puts the player at the menu spot with their loadout and opens the main menu.
+void function CAT_SendToMenu( entity player )
+{
+	if ( !CAT_HasSession( player ) )
+		return
+	CATSession s = file.sessions[ player ]
+
+	vector pos = file.map.startPos
+	vector ang = file.map.startAng
+	if ( !file.map.known && file.map.startPos == <0, 0, 0> )
+	{
+		pos = player.GetOrigin()
+		ang = player.GetAngles()
+	}
+	CAT_TeleportPlayer( player, pos, ang )
+	CAT_EnsureLoadout( player )
+	player.FreezeControlsOnServer()
+
+	Remote_CallFunction_NonReplay( player, "CAT_CL_OpenMainMenu", s.sessionKills )
+}
+
+// --------------------------------------------------------------------------
+// Client command: "cosmic_aimtrainer <verb> [args]"
+
+void function CAT_ClientCommand( entity player, array<string> args )
+{
+	if ( !CAT_HasSession( player ) || args.len() == 0 )
+		return
+
+	CATSession s = file.sessions[ player ]
+	string verb = args[0].tolower()
+
+	switch ( verb )
+	{
+		case "start":
+			if ( args.len() < 2 )
+				return
+			CAT_StartChallenge( player, int( args[1] ) )
+			return
+
+		case "exit":       // finish early from the in-game menu
+			if ( s.active )
+				Signal( player, CAT_SIGNAL_TIME_OVER )
+			return
+
+		case "skip":       // results screen -> main menu
+			Signal( player, CAT_SIGNAL_RESULTS_DONE )
+			return
+
+		case "restart":    // results screen -> same drill again
+			if ( !s.awaitingResults && !s.active )
+				return
+			s.restarting = true
+			if ( s.active )
+				Signal( player, CAT_SIGNAL_TIME_OVER )
+			else
+				Signal( player, CAT_SIGNAL_RESULTS_DONE )
+			return
+
+		case "menu":       // menu opened/closed while idle: freeze/unfreeze
+			if ( s.active || args.len() < 2 )
+				return
+			if ( args[1] == "1" )
+				player.FreezeControlsOnServer()
+			else
+				player.UnfreezeControlsOnServer()
+			return
+
+		case "set":
+			if ( args.len() < 3 )
+				return
+			CAT_ApplySetting( s, args[1].tolower(), int( args[2] ) )
+			return
+
+		case "weapon":     // weapon <ref> <slot 0|1> [mods...]
+			if ( args.len() < 3 || s.active )
+				return
+			CAT_GiveMenuWeapon( player, args[1], int( args[2] ), args.slice( 3 ) )
+			return
+
+		case "pos":        // dev helper for adding maps
+			if ( GetConVarInt( "sv_cheats" ) != 1 )
+				return
+			printt( CAT_LOG, "pos", GetMapName(), "origin", player.GetOrigin(), "angles", player.GetAngles() )
+			return
+	}
+}
+
+void function CAT_ApplySetting( CATSession s, string key, int value )
+{
+	value = CAT_ClampSetting( key, value )
+	switch ( key )
+	{
+		case "duration": s.settings.duration = value; break
+		case "infinite": s.settings.infinite = value != 0; break
+		case "shield": s.settings.shield = value; break
+		case "speed": s.settings.speed = value; break
+		case "distance": s.settings.distance = value; break
+		case "health": s.settings.health = value; break
+		case "color": s.settings.color = value; break
+		case "immortal": s.settings.immortal = value != 0; break
+		case "reloadhit": s.settings.refillOnHit = value != 0; break
+		case "reloadkill": s.settings.refillOnKill = value != 0; break
+	}
+}
+
+// --------------------------------------------------------------------------
+// Challenge flow
+
+void function CAT_StartChallenge( entity player, int drillId )
+{
+	CATSession s = file.sessions[ player ]
+	if ( s.active || !CAT_IsValidDrill( drillId ) || !( drillId in file.drillStarts ) )
+	{
+		printt( CAT_LOG, "refused start", drillId, "for", player.GetPlayerName() )
+		return
+	}
+
+	// A start while the results screen is up ends that screen first.
+	if ( s.awaitingResults )
+		Signal( player, CAT_SIGNAL_RESULTS_DONE )
+
+	thread CAT_RunChallenge( player, drillId )
+}
+
+void function CAT_RunChallenge( entity player, int drillId )
+{
+	player.EndSignal( "OnDestroy" )
+	CATSession s = file.sessions[ player ]
+
+	// Wait for a previous results thread to clean up.
+	while ( s.awaitingResults )
+		WaitFrame()
+
+	if ( !IsAlive( player ) )
+		DecideRespawnPlayer( player, false )
+
+	CAT_ResetStats( s )
+	s.active = true
+	s.drillId = drillId
+	s.restarting = false
+	CAT_SnapshotLoadout( player, s )
+	CAT_RefillAmmo( player )
+
+	player.FreezeControlsOnServer()
+	player.SetHealth( player.GetMaxHealth() )
+	AddCinematicFlag( player, CE_FLAG_HIDE_MAIN_HUD_INSTANT )
+	AddCinematicFlag( player, CE_FLAG_HIDE_PERMANENT_HUD )
+
+	int duration = s.settings.infinite ? CAT_INFINITE_DURATION : s.settings.duration
+	Remote_CallFunction_NonReplay( player, "CAT_CL_SetChallengeActive", true )
+	Remote_CallFunction_NonReplay( player, "CAT_CL_ChallengeStarting", drillId, duration )
+
+	waitthread CAT_RunDrillThread( player, drillId )
+}
+
+void function CAT_RunDrillThread( entity player, int drillId )
+{
+	player.EndSignal( "OnDestroy" )
+	player.EndSignal( CAT_SIGNAL_TIME_OVER )
+
+	OnThreadEnd(
+		function() : ( player )
+		{
+			if ( IsValid( player ) )
+				CAT_OnChallengeEnd( player )
+		}
+	)
+
+	void functionref( entity ) startFn = file.drillStarts[ drillId ]
+	waitthread startFn( player )
+}
+
+// Called by drills after teleporting. Shows the description for
+// CAT_PRE_START_TIME, then starts the clock.
+void function CAT_WaitForStart( entity player )
+{
+	CATSession s = file.sessions[ player ]
+	wait CAT_PRE_START_TIME
+
+	RemoveCinematicFlag( player, CE_FLAG_HIDE_MAIN_HUD_INSTANT )
+	RemoveCinematicFlag( player, CE_FLAG_HIDE_PERMANENT_HUD )
+	player.UnfreezeControlsOnServer()
+
+	s.endTime = Time() + float( s.settings.duration )
+	thread CAT_ChallengeWatcher( player )
+}
+
+void function CAT_ChallengeWatcher( entity player )
+{
+	player.EndSignal( "OnDestroy" )
+	player.EndSignal( CAT_SIGNAL_TIME_OVER )
+
+	while ( CAT_IsRunning( player ) )
+		WaitFrame()
+
+	Signal( player, CAT_SIGNAL_TIME_OVER )
+}
+
+void function CAT_OnChallengeEnd( entity player )
+{
+	if ( !CAT_HasSession( player ) )
+		return
+	CATSession s = file.sessions[ player ]
+	if ( !s.active )
+		return
+	s.active = false
+
+	Remote_CallFunction_NonReplay( player, "CAT_CL_SetChallengeActive", false )
+
+	float accuracy = s.totalShots > 0 ? float( s.shotsHit ) / float( s.totalShots ) : 0.0
+	accuracy = clamp( accuracy, 0.0, 1.0 )
+
+	if ( !( s.drillId in s.bestScores ) )
+		s.bestScores[ s.drillId ] <- 0
+	bool isNewBest = s.shotsHit > s.bestScores[ s.drillId ]
+	if ( isNewBest )
+		s.bestScores[ s.drillId ] = s.shotsHit
+
+	printt( CAT_LOG, "results", player.GetPlayerName(), "drill", s.drillId, "hits", s.shotsHit, "shots", s.totalShots, "kills", s.kills, "dmg", s.damage, "crits", s.crits )
+
+	s.sessionKills += s.kills
+
+	if ( !s.restarting )
+		Remote_CallFunction_NonReplay( player, "CAT_CL_ShowResults", s.drillId, s.shotsHit, s.kills, accuracy, s.damage, s.crits, s.bestScores[ s.drillId ], isNewBest, s.totalShots )
+
+	thread CAT_ResultsThread( player )
+}
+
+// Waits on the results screen, then cleans up and either restarts the drill or
+// returns to the main menu.
+void function CAT_ResultsThread( entity player )
+{
+	player.EndSignal( "OnDestroy" )
+	CATSession s = file.sessions[ player ]
+	s.awaitingResults = true
+
+	CAT_CleanupEntities( s )
+	CAT_RestoreLoadout( player )
+	RemoveCinematicFlag( player, CE_FLAG_HIDE_MAIN_HUD_INSTANT )
+	RemoveCinematicFlag( player, CE_FLAG_HIDE_PERMANENT_HUD )
+	player.FreezeControlsOnServer()
+	player.SetVelocity( <0, 0, 0> )
+
+	if ( !s.restarting )
+		WaitSignal( player, CAT_SIGNAL_RESULTS_DONE )
+
+	s.awaitingResults = false
+	Remote_CallFunction_NonReplay( player, "CAT_CL_ResetLive" )
+
+	if ( s.restarting )
+	{
+		s.restarting = false
+		Remote_CallFunction_NonReplay( player, "CAT_CL_CloseResults" )
+		Remote_CallFunction_NonReplay( player, "CAT_CL_RestartChallenge", s.drillId )
+		CAT_StartChallenge( player, s.drillId )
+	}
+	else
+	{
+		CAT_SendToMenu( player )
+	}
+}
+
+void function CAT_ResetStats( CATSession s )
+{
+	s.kills = 0
+	s.shotsHit = 0
+	s.totalShots = 0
+	s.damage = 0
+	s.crits = 0
+	s.possibleDamage = 0
+}
+
+void function CAT_CleanupEntities( CATSession s )
+{
+	foreach ( entity e in s.ents )
+	{
+		if ( IsValid( e ) )
+			e.Destroy()
+	}
+	s.ents.clear()
+	s.dummies.clear()
+}
+
+void function CAT_OnPlayerDied( entity player, var damageInfo )
+{
+	if ( !CAT_HasSession( player ) || !file.sessions[ player ].active )
+		return
+	thread CAT_OnPlayerDied_Thread( player )
+}
+
+void function CAT_OnPlayerDied_Thread( entity player )
+{
+	player.EndSignal( "OnDestroy" )
+	wait 1.0
+	Signal( player, CAT_SIGNAL_TIME_OVER )
+	WaitFrame()
+	if ( !IsAlive( player ) )
+		DecideRespawnPlayer( player, false )
+}
+
+// --------------------------------------------------------------------------
+// Positions and arena building
+
+void function CAT_TeleportPlayer( entity player, vector pos, vector ang )
+{
+	player.SetVelocity( <0, 0, 0> )
+	player.SetOrigin( pos )
+	player.SetAngles( ang )
+	player.SnapEyeAngles( ang )
+}
+
+vector function CAT_GetGroundPos( entity player )
+{
+	if ( file.map.groundPos != <0, 0, 0> )
+		return file.map.groundPos
+	return file.map.startPos != <0, 0, 0> ? file.map.startPos : player.GetOrigin()
+}
+
+vector function CAT_GetGroundAngles( entity player )
+{
+	if ( file.map.groundPos != <0, 0, 0> )
+		return file.map.groundAng
+	return <0, player.GetAngles().y, 0>
+}
+
+// Corner of this player's sky floor. Each arena slot gets its own floor so
+// several players can run sky drills at once.
+vector function CAT_GetSkyFloorOrigin( entity player )
+{
+	vector base = file.map.skyFloor
+	if ( base == <0, 0, 0> )
+		base = CAT_GetGroundPos( player ) + <-3840, -3840, 4000>
+
+	CATSession s = file.sessions[ player ]
+	return base + <CAT_SKY_SLOT_SPACING * s.arenaSlot, 0, 0>
+}
+
+// Where the player stands on their sky floor (the original's floorCenterForPlayer).
+vector function CAT_GetSkyPlayerPos( entity player )
+{
+	vector o = CAT_GetSkyFloorOrigin( player )
+	return <o.x + 3840, o.y + 3840, o.z + 200>
+}
+
+// Builds the 31x31 floor for sky drills and returns where the player stands.
+vector function CAT_BuildSkyFloor( entity player )
+{
+	CAT_CreateFloor( player, CAT_GetSkyFloorOrigin( player ), CAT_SKY_FLOOR_TILES, CAT_SKY_FLOOR_TILES )
+	return CAT_GetSkyPlayerPos( player )
+}
+
+entity function CAT_CreateProp( entity player, asset model, vector origin, vector angles, bool mantle = false, float fade = 50000 )
+{
+	entity e = CreatePropDynamic( model, origin, angles, SOLID_VPHYSICS, 15000 )
+	e.kv.fadedist = fade
+	if ( mantle )
+		e.AllowMantle()
+	CAT_TrackEnt( player, e )
+	return e
+}
+
+void function CAT_TrackEnt( entity player, entity e )
+{
+	if ( CAT_HasSession( player ) )
+		file.sessions[ player ].ents.append( e )
+}
+
+array<entity> function CAT_CreateFloor( entity player, vector origin, int width, int length )
+{
+	int x = int( origin.x )
+	int y = int( origin.y )
+	int z = int( origin.z )
+	array<entity> arr
+	for ( int i = y; i <= y + ( length * 256 ); i += 256 )
+	{
+		for ( int j = x; j <= x + ( width * 256 ); j += 256 )
+			arr.append( CAT_CreateProp( player, CAT_FLOOR_TILE, <j, i, z>, <0, 0, 0> ) )
+	}
+	return arr
+}
+
+// angle must be 0 or 90
+array<entity> function CAT_CreateWall( entity player, vector origin, int length, int height, int angle )
+{
+	int x = int( origin.x )
+	int y = int( origin.y )
+	int z = int( origin.z )
+	array<entity> arr
+	int start = ( angle == 90 ) ? y : x
+	int end = start + ( length * 256 )
+	for ( int i = start; i <= end; i += 256 )
+	{
+		for ( int j = z; j <= z + ( height * 256 ); j += 256 )
+		{
+			if ( angle == 90 )
+				arr.append( CAT_CreateProp( player, CAT_WALL_TILE, <x, i, j>, <0, 90, 0> ) )
+			else
+				arr.append( CAT_CreateProp( player, CAT_WALL_TILE, <i, y, j>, <0, 0, 0> ) )
+		}
+	}
+	return arr
+}
+
+vector function CAT_OriginToGround( vector origin )
+{
+	vector endOrigin = <origin.x, origin.y, -MAX_WORLD_COORD_BUFFER>
+	TraceResults traceResult = TraceLine( origin, endOrigin, [], TRACE_MASK_NPCWORLDSTATIC, TRACE_COLLISION_GROUP_NONE )
+	return traceResult.endPos
+}
+
+bool function CAT_PosCanContainDummy( vector origin )
+{
+	// Start a little above the feet so standing on the ground isn't "stuck".
+	vector start = origin + <0, 0, 4>
+	TraceResults result = TraceHull( start, start + <0, 0, 1>, <-16, -16, 0>, <16, 16, 68>, [], TRACE_MASK_NPCSOLID, TRACE_COLLISION_GROUP_NONE )
+	return !result.startSolid && result.fraction == 1.0
+}
+
+// --------------------------------------------------------------------------
+// Dummies
+
+// Creates an npc_dummie with the player's health/shield/skin settings and the
+// default damage + kill handlers. Pass dispatch=false to tweak before spawn,
+// then call DispatchSpawn and CAT_SetupCommonDummy yourself.
+entity function CAT_SpawnDummy( entity player, vector origin, vector angles, bool dispatch = true, string aiSettings = "npc_dummie_combat_trainer", bool defaultCallbacks = true )
+{
+	CATSession s = file.sessions[ player ]
+
+	entity dummy = CreateNPC( "npc_dummie", 99, origin, angles )
+	SetSpawnOption_AISettings( dummy, aiSettings )
+	StartParticleEffectInWorld( GetParticleSystemIndex( CAT_SPAWN_FX ), origin, angles )
+
+	s.ents.append( dummy )
+	s.dummies.append( dummy )
+
+	if ( defaultCallbacks )
+	{
+		AddEntityCallback_OnDamaged( dummy, CAT_OnTargetDamaged_Default )
+		AddEntityCallback_OnKilled( dummy, CAT_OnTargetKilled_Default )
+	}
+
+	if ( dispatch )
+	{
+		DispatchSpawn( dummy )
+		CAT_SetupCommonDummy( player, dummy )
+	}
+	return dummy
+}
+
+// Health, shields, skin and flags. Call after DispatchSpawn.
+void function CAT_SetupCommonDummy( entity player, entity dummy, bool withShields = true )
+{
+	CATSession s = file.sessions[ player ]
+
+	int shield = withShields ? CAT_ShieldLevelToAmount( s.settings.shield ) : 0
+	dummy.SetShieldHealthMax( shield )
+	dummy.SetShieldHealth( shield )
+	dummy.SetMaxHealth( s.settings.health )
+	dummy.SetHealth( s.settings.health )
+
+	dummy.SetTakeDamageType( DAMAGE_YES )
+	dummy.SetDamageNotifications( true )
+	dummy.SetDeathNotifications( true )
+	dummy.SetValidHealthBarTarget( true )
+	SetObjectCanBeMeleed( dummy, true )
+
+	if ( s.settings.speed == 0 )
+	{
+		dummy.EnableNPCFlag( NPC_IGNORE_ALL | NPC_DISABLE_SENSING )
+		dummy.DisableNPCFlag( NPC_ALLOW_PATROL | NPC_ALLOW_INVESTIGATE | NPC_USE_SHOOTING_COVER )
+	}
+
+	if ( s.settings.color == 5 )
+		dummy.SetSkin( RandomIntRangeInclusive( 1, 4 ) )
+	else
+		dummy.SetSkin( s.settings.color )
+
+	dummy.DisableHibernation()
+}
+
+void function CAT_UntrackDummy( entity player, entity dummy )
+{
+	if ( CAT_HasSession( player ) )
+		file.sessions[ player ].dummies.removebyvalue( dummy )
+}
+
+array<entity> function CAT_GetDummies( entity player )
+{
+	CATSession s = file.sessions[ player ]
+	array<entity> alive
+	foreach ( entity d in s.dummies )
+	{
+		if ( IsValid( d ) )
+			alive.append( d )
+	}
+	s.dummies = alive
+	return alive
+}
+
+float function CAT_StrafeRate( entity player )
+{
+	return CAT_SpeedSelectorToRate( file.sessions[ player ].settings.speed )
+}
+
+// Mirrors the original: wait times scale with the speed, except the top speed.
+float function CAT_StrafeWaitScale( entity player )
+{
+	float rate = CAT_StrafeRate( player )
+	if ( rate <= 0.0 || rate == 1.8 )
+		return 1.0
+	return rate
+}
+
+float function CAT_SpawnDistance( entity player )
+{
+	return float( file.sessions[ player ].settings.distance )
+}
+
+// --------------------------------------------------------------------------
+// Stats
+
+// Purple-helmet headshot reduction the original applied to every target.
+void function CAT_ApplyFakeHelmet( entity target, var damageInfo )
+{
+	if ( !IsValidHeadShot( damageInfo, target ) )
+		return
+	float mult = GetHeadshotDamageMultiplierFromDamageInfo( damageInfo )
+	if ( mult <= 0.0 )
+		return
+	float base = DamageInfo_GetDamage( damageInfo ) / mult
+	DamageInfo_SetDamage( damageInfo, base * ( file.helmetLv4 + ( 1.0 - file.helmetLv4 ) * mult ) )
+}
+
+// One hit that counts for the score.
+void function CAT_AddHit( entity player, int damage, bool isCrit )
+{
+	if ( !CAT_HasSession( player ) )
+		return
+	CATSession s = file.sessions[ player ]
+	if ( !s.active )
+		return
+
+	s.shotsHit++
+	s.damage += damage
+	Remote_CallFunction_NonReplay( player, "CAT_CL_LiveHit", ClampInt( damage, 0, 65535 ) )
+
+	if ( isCrit )
+	{
+		s.crits++
+		Remote_CallFunction_NonReplay( player, "CAT_CL_LiveCrits", s.crits )
+	}
+
+	if ( s.settings.refillOnHit )
+		CAT_RefillAmmo( player )
+}
+
+// Damage that shows in stats but is not a scoring hit (floating target on the floor).
+void function CAT_AddDamageOnly( entity player, int damage, bool isCrit )
+{
+	if ( !CAT_HasSession( player ) )
+		return
+	CATSession s = file.sessions[ player ]
+	if ( !s.active )
+		return
+	s.damage += damage
+	Remote_CallFunction_NonReplay( player, "CAT_CL_LiveDamage", ClampInt( damage, 0, 65535 ) )
+	if ( isCrit )
+	{
+		s.crits++
+		Remote_CallFunction_NonReplay( player, "CAT_CL_LiveCrits", s.crits )
+	}
+	if ( s.settings.refillOnHit )
+		CAT_RefillAmmo( player )
+}
+
+void function CAT_AddKill( entity player )
+{
+	if ( !CAT_HasSession( player ) )
+		return
+	CATSession s = file.sessions[ player ]
+	if ( !s.active )
+		return
+	s.kills++
+	Remote_CallFunction_NonReplay( player, "CAT_CL_LiveKills", s.kills )
+	if ( s.settings.refillOnKill )
+		CAT_RefillAmmo( player )
+}
+
+// The original's OnStraferDummyDamaged, minus the double-counted kills.
+void function CAT_OnTargetDamaged_Default( entity dummy, var damageInfo )
+{
+	entity attacker = DamageInfo_GetAttacker( damageInfo )
+	if ( !IsValid( attacker ) || !attacker.IsPlayer() || !CAT_HasSession( attacker ) )
+		return
+
+	CAT_ApplyFakeHelmet( dummy, damageInfo )
+
+	int damage = int( DamageInfo_GetDamage( damageInfo ) )
+	bool isCrit = IsValidHeadShot( damageInfo, dummy )
+	CAT_AddHit( attacker, damage, isCrit )
+
+	if ( file.sessions[ attacker ].settings.immortal )
+	{
+		DamageInfo_SetDamage( damageInfo, 0 )
+		dummy.SetShieldHealth( dummy.GetShieldHealthMax() )
+		dummy.SetHealth( dummy.GetMaxHealth() )
+	}
+}
+
+void function CAT_OnTargetKilled_Default( entity dummy, var damageInfo )
+{
+	entity attacker = DamageInfo_GetAttacker( damageInfo )
+	if ( !IsValid( attacker ) || !attacker.IsPlayer() )
+		return
+	CAT_AddKill( attacker )
+	CAT_UntrackDummy( attacker, dummy )
+}
+
+void function CAT_OnWeaponAttack( entity player, entity weapon, string weaponName, int ammoUsed, vector attackOrigin, vector attackDir )
+{
+	if ( !CAT_HasSession( player ) )
+		return
+	CATSession s = file.sessions[ player ]
+	if ( !s.active || !IsValid( weapon ) )
+		return
+	if ( weaponName == "mp_weapon_lightninggun" )
+		return
+
+	int basedamage = weapon.GetWeaponSettingInt( eWeaponVar.damage_near_value )
+	int ornull projectiles = weapon.GetWeaponSettingInt( eWeaponVar.projectiles_per_shot )
+	int pellets = projectiles != null ? maxint( 1, expect int( projectiles ) ) : 1
+
+	s.totalShots += pellets
+	s.possibleDamage += basedamage * pellets
+	Remote_CallFunction_NonReplay( player, "CAT_CL_LiveShot", ClampInt( pellets, 0, 1023 ), ClampInt( basedamage * pellets, 0, 65535 ) )
+}
+
+// --------------------------------------------------------------------------
+// Loadout
+
+// Full magazine and a bottomless reserve. Doesn't depend on the game's own
+// infinite-ammo switch (SetupInfiniteAmmoForWeapon is a no-op without it).
+void function CAT_FillWeaponAmmo( entity player, entity weapon )
+{
+	if ( !IsValid( weapon ) )
+		return
+	int ammoType = weapon.GetWeaponAmmoPoolType()
+	if ( ammoType >= 0 )
+	{
+		player.AmmoPool_SetCapacity( 65535 )
+		player.AmmoPool_SetCount( ammoType, 65535 )
+	}
+	if ( weapon.UsesClipsForAmmo() )
+		weapon.SetWeaponPrimaryClipCount( weapon.GetWeaponPrimaryClipCountMax() )
+}
+
+void function CAT_RefillAmmo( entity player )
+{
+	if ( !IsAlive( player ) )
+		return
+	foreach ( int slot in [ WEAPON_INVENTORY_SLOT_PRIMARY_0, WEAPON_INVENTORY_SLOT_PRIMARY_1 ] )
+		CAT_FillWeaponAmmo( player, player.GetNormalWeapon( slot ) )
+}
+
+void function CAT_EnsureLoadout( entity player )
+{
+	entity primary = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 )
+	if ( IsValid( primary ) )
+	{
+		CAT_RefillAmmo( player )
+		return
+	}
+	entity w = player.GiveWeapon_NoDeploy( CAT_DEFAULT_WEAPON, WEAPON_INVENTORY_SLOT_PRIMARY_0, CAT_DEFAULT_MODS, false )
+	CAT_FillWeaponAmmo( player, w )
+	player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, WEAPON_INVENTORY_SLOT_PRIMARY_0 )
+}
+
+void function CAT_SnapshotLoadout( entity player, CATSession s )
+{
+	s.weaponNames.clear()
+	s.weaponMods.clear()
+	s.weaponSlots.clear()
+	foreach ( int slot in [ WEAPON_INVENTORY_SLOT_PRIMARY_0, WEAPON_INVENTORY_SLOT_PRIMARY_1 ] )
+	{
+		entity w = player.GetNormalWeapon( slot )
+		if ( !IsValid( w ) )
+			continue
+		s.weaponNames.append( w.GetWeaponClassName() )
+		s.weaponMods.append( w.GetMods() )
+		s.weaponSlots.append( slot )
+	}
+}
+
+// Replaces primaries with a drill weapon (arc stars, grenades). The loadout
+// snapshot taken at start is restored when the challenge ends.
+entity function CAT_GiveDrillWeapon( entity player, string weaponName, int slot, array<string> mods = [] )
+{
+	CAT_TakePrimaries( player )
+	entity w = player.GiveWeapon_NoDeploy( weaponName, slot, mods, false )
+	player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, slot )
+	return w
+}
+
+void function CAT_RestoreLoadout( entity player )
+{
+	if ( !CAT_HasSession( player ) || !IsAlive( player ) )
+		return
+	CATSession s = file.sessions[ player ]
+	if ( s.weaponNames.len() == 0 )
+		return
+
+	CAT_TakePrimaries( player )
+	for ( int i = 0; i < s.weaponNames.len(); i++ )
+	{
+		entity w = player.GiveWeapon_NoDeploy( s.weaponNames[i], s.weaponSlots[i], s.weaponMods[i], false )
+		CAT_FillWeaponAmmo( player, w )
+	}
+	player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, s.weaponSlots[0] )
+}
+
+void function CAT_TakePrimaries( entity player )
+{
+	foreach ( int slot in [ WEAPON_INVENTORY_SLOT_PRIMARY_0, WEAPON_INVENTORY_SLOT_PRIMARY_1 ] )
+	{
+		entity w = player.GetNormalWeapon( slot )
+		if ( IsValid( w ) )
+			player.TakeWeaponByEntNow( w )
+	}
+}
+
+// From the weapon picker in the main menu. Validated against loot data so a
+// client can't hand itself arbitrary weapons.
+void function CAT_GiveMenuWeapon( entity player, string weaponRef, int slotIndex, array<string> mods )
+{
+	if ( !SURVIVAL_Loot_IsRefValid( weaponRef ) )
+		return
+	LootData data = SURVIVAL_Loot_GetLootDataByRef( weaponRef )
+	if ( data.lootType != eLootType.MAINWEAPON )
+		return
+
+	// Base loot mods (e.g. dormant hop-ups) the weapon normally spawns with.
+	array<string> validMods = clone data.baseMods
+	foreach ( string mod in mods )
+	{
+		if ( SURVIVAL_Loot_IsRefValid( mod ) )
+			validMods.append( mod )
+	}
+
+	int slot = slotIndex == 1 ? WEAPON_INVENTORY_SLOT_PRIMARY_1 : WEAPON_INVENTORY_SLOT_PRIMARY_0
+	entity old = player.GetNormalWeapon( slot )
+	if ( IsValid( old ) )
+		player.TakeWeaponByEntNow( old )
+
+	entity w
+	try
+	{
+		w = player.GiveWeapon_NoDeploy( weaponRef, slot, validMods, false )
+	}
+	catch ( e )
+	{
+		printt( CAT_LOG, "weapon give failed", weaponRef, validMods.len(), e )
+		try
+		{
+			w = player.GiveWeapon_NoDeploy( weaponRef, slot, [], false )
+		}
+		catch ( e2 )
+		{
+			printt( CAT_LOG, "weapon give failed without mods", weaponRef, e2 )
+			CAT_EnsureLoadout( player )
+			return
+		}
+	}
+	CAT_FillWeaponAmmo( player, w )
+	player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, slot )
+}

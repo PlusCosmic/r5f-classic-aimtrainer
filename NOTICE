@@ -1,0 +1,44 @@
+r5f-classic-aimtrainer NOTICE
+=============================
+
+This repository mixes material under different terms. Read this file before
+redistributing any part of it.
+
+
+1. THIS PROJECT, AGPL-3.0
+-------------------------
+
+The mod in mod/, the menu layouts in platform_ui/ and the tools in tools/ are
+licensed under the GNU Affero General Public License, version 3, as set out in
+LICENSE.
+
+They are a derivative of R5Flowstate's s21-platform
+(https://github.com/R5Flowstate/s21-platform), which is AGPL-3.0: the menu
+layouts adapt s21-platform menu and panel files, and the scripts build on and
+call into s21-platform scripts. Copyright in those parts stays with the
+R5Flowstate contributors.
+
+
+2. ORIGINAL AIM TRAINER, NOT LICENSED
+-------------------------------------
+
+The drills, flow and menus are ported from the R5Reloaded Flowstate Aim
+Trainer by CafeFPS ("Colombia") and the Flowstate contributors, published in
+https://github.com/Mauler125/r5_flowstate (gamemodes/fs_aimtrainer,
+ui/FRChallenges). That repository carries no license, so its authors keep all
+rights. This port is published with credit to them, and permission to
+redistribute their work under the terms above is being sought. If you are one
+of the authors and object, open an issue and it will be taken down.
+
+
+3. RESPAWN AND EA MATERIAL, NOT OURS TO LICENSE
+-----------------------------------------------
+
+The scripts and menus name things the game already contains and that belong to
+Respawn Entertainment and Electronic Arts, including the Squirrel script
+structure, function names and call shapes, and asset, model, entity, weapon,
+effect, sound and localization names. None of it is licensed to you by this
+project, and the AGPL grant in section 1 does not extend to it.
+
+This project is unaffiliated with, and not endorsed by, Respawn Entertainment,
+Electronic Arts, R5Reloaded or R5Flowstate.

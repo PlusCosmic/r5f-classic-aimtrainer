@@ -1,0 +1,56 @@
+playlists
+{
+    Playlists
+    {
+        ///////////////////////////////////////////////////////////////////////////////////
+        //// Cosmic Aim Trainer -- port of the R5Reloaded Flowstate Aim Trainer
+        ///////////////////////////////////////////////////////////////////////////////////
+        cosmic_aimtrainer
+        {
+            inherit survival_dev
+            vars
+            {
+                for_mod                                 Cosmic.AimTrainer
+
+                r5f_mode_group                          flowstate
+                r5f_mode_family                         cosmic_aimtrainer
+                r5f_mode_family_title                   "Aim Trainer (Classic)"
+                r5f_mode_family_order                   24
+                r5f_mode_family_blurb                   "The classic R5Reloaded aim trainer drills."
+                r5f_mode                                1
+                r5f_mode_order                          24
+                r5f_mode_title                          "Aim Trainer (Classic)"
+                r5f_mode_blurb                          "The classic R5Reloaded aim trainer drills."
+                visible                                 1
+                name                                    "Aim Trainer (Classic)"
+                description                             "Aim Trainer (Classic)"
+                abbreviation                            "AIM"
+                lobbytitle                              "Aim Trainer (Classic)"
+                map_name                                ""
+
+                cosmic_aimtrainer_enabled               1
+
+                max_players                             8
+                max_team_size                           1
+
+                // Training only: no loot, no drones, no ring, ammo never runs out.
+                survival_loot_enabled                   0
+                ground_loot_enable                      0
+                loot_drones_spawn_count                 0
+                loot_drones_vault_key_count             0
+                survival_infinite_ammo                  1
+                sur_bots_spawn_with_random_weapons      0
+                sur_circle_start_paused                 1
+
+                // Headshot damage reduction the original applied as a fake purple helmet.
+                helmet_lv4                              0.65
+            }
+            gamemodes { survival { maps {
+                mp_rr_canyonlands_staging               1
+                mp_rr_desertlands_hu                    1
+                mp_rr_canyonlands_hu                    1
+                mp_rr_olympus_mu2                       1
+            } } }
+        }
+    }
+}

@@ -1,0 +1,2219 @@
+resource/ui/menus/cosmic_aimtrainer/weaponselector.menu
+{
+	menu
+	{
+		ControlName				Frame
+		xpos					0
+		ypos					0
+		zpos					3
+		wide					f0
+		tall					f0
+		autoResize				0
+		pinCorner				0
+		visible					1
+		enabled					1
+		tabPosition				0
+		PaintBackgroundType		0
+		infocus_bgcolor_override	"0 0 0 0"
+		outoffocus_bgcolor_override	"0 0 0 0"
+		modal					1
+
+		// Port of R5R FRChallenges/mainmenu_settings_weaponselector.menu.
+		// Generated layout, 1920x1080 coordinates. Tabs are script driven
+		// (no TabsCommonClass: the S21 tab system only knows menus that
+		// existed when InitTabs ran).
+
+		// UpdateMenuBlur needs direct children named ScreenBlur / DarkenBackground.
+		ScreenBlur
+		{
+			ControlName	Label
+			xpos	0
+			ypos	0
+			wide	%100
+			tall	%100
+			labelText	""
+			visible	1
+		}
+
+		DarkenBackground
+		{
+			ControlName	ImagePanel
+			xpos	0
+			ypos	0
+			wide	%100
+			tall	%100
+			visible	1
+			scaleImage	1
+			fillColor	"0 0 0 120"
+			drawColor	"0 0 0 120"
+			zpos	0
+		}
+
+		Title
+		{
+			ControlName	Label
+			xpos	960
+			ypos	30
+			wide	930
+			tall	60
+			zpos	5
+			visible	1
+			labelText	"FLOWSTATE AIM TRAINER"
+			textAlignment	east
+			font	TitleBoldFont
+			fontHeight	60
+			fgcolor_override	"191 13 13 255"
+		}
+
+		WeaponSelectorFrame
+		{
+			ControlName	ImagePanel
+			xpos	96
+			ypos	162
+			wide	1728
+			tall	756
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"0 0 0 230"
+			drawColor	"0 0 0 230"
+		}
+
+		TitleWeaponSelector
+		{
+			ControlName	Label
+			xpos	96
+			ypos	104
+			wide	1728
+			tall	52
+			zpos	5
+			visible	1
+			labelText	"WEAPON SELECTOR"
+			textAlignment	center
+			font	TitleBoldFont
+			fontHeight	44
+			fgcolor_override	"252 198 3 255"
+		}
+
+		TabFrame0
+		{
+			ControlName	ImagePanel
+			xpos	120
+			ypos	182
+			wide	262
+			tall	48
+			zpos	5
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		TabSel0
+		{
+			ControlName	ImagePanel
+			xpos	120
+			ypos	182
+			wide	262
+			tall	48
+			zpos	6
+			visible	0
+			scaleImage	1
+			fillColor	"105 63 1 220"
+			drawColor	"105 63 1 220"
+		}
+
+		TabText0
+		{
+			ControlName	Label
+			xpos	120
+			ypos	182
+			wide	262
+			tall	48
+			zpos	7
+			visible	1
+			labelText	""
+			textAlignment	center
+			font	TitleBoldFont
+			fontHeight	24
+			fgcolor_override	"255 255 255 255"
+		}
+
+		TabButton0
+		{
+			ControlName	RuiButton
+			xpos	120
+			ypos	182
+			wide	262
+			tall	48
+			zpos	9
+			visible	1
+			enabled	1
+			scriptID	0
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		TabFrame1
+		{
+			ControlName	ImagePanel
+			xpos	397
+			ypos	182
+			wide	262
+			tall	48
+			zpos	5
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		TabSel1
+		{
+			ControlName	ImagePanel
+			xpos	397
+			ypos	182
+			wide	262
+			tall	48
+			zpos	6
+			visible	0
+			scaleImage	1
+			fillColor	"105 63 1 220"
+			drawColor	"105 63 1 220"
+		}
+
+		TabText1
+		{
+			ControlName	Label
+			xpos	397
+			ypos	182
+			wide	262
+			tall	48
+			zpos	7
+			visible	1
+			labelText	""
+			textAlignment	center
+			font	TitleBoldFont
+			fontHeight	24
+			fgcolor_override	"255 255 255 255"
+		}
+
+		TabButton1
+		{
+			ControlName	RuiButton
+			xpos	397
+			ypos	182
+			wide	262
+			tall	48
+			zpos	9
+			visible	1
+			enabled	1
+			scriptID	1
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		TabFrame2
+		{
+			ControlName	ImagePanel
+			xpos	674
+			ypos	182
+			wide	262
+			tall	48
+			zpos	5
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		TabSel2
+		{
+			ControlName	ImagePanel
+			xpos	674
+			ypos	182
+			wide	262
+			tall	48
+			zpos	6
+			visible	0
+			scaleImage	1
+			fillColor	"105 63 1 220"
+			drawColor	"105 63 1 220"
+		}
+
+		TabText2
+		{
+			ControlName	Label
+			xpos	674
+			ypos	182
+			wide	262
+			tall	48
+			zpos	7
+			visible	1
+			labelText	""
+			textAlignment	center
+			font	TitleBoldFont
+			fontHeight	24
+			fgcolor_override	"255 255 255 255"
+		}
+
+		TabButton2
+		{
+			ControlName	RuiButton
+			xpos	674
+			ypos	182
+			wide	262
+			tall	48
+			zpos	9
+			visible	1
+			enabled	1
+			scriptID	2
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		TabFrame3
+		{
+			ControlName	ImagePanel
+			xpos	951
+			ypos	182
+			wide	262
+			tall	48
+			zpos	5
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		TabSel3
+		{
+			ControlName	ImagePanel
+			xpos	951
+			ypos	182
+			wide	262
+			tall	48
+			zpos	6
+			visible	0
+			scaleImage	1
+			fillColor	"105 63 1 220"
+			drawColor	"105 63 1 220"
+		}
+
+		TabText3
+		{
+			ControlName	Label
+			xpos	951
+			ypos	182
+			wide	262
+			tall	48
+			zpos	7
+			visible	1
+			labelText	""
+			textAlignment	center
+			font	TitleBoldFont
+			fontHeight	24
+			fgcolor_override	"255 255 255 255"
+		}
+
+		TabButton3
+		{
+			ControlName	RuiButton
+			xpos	951
+			ypos	182
+			wide	262
+			tall	48
+			zpos	9
+			visible	1
+			enabled	1
+			scriptID	3
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		BoxFrame
+		{
+			ControlName	ImagePanel
+			xpos	1260
+			ypos	182
+			wide	540
+			tall	676
+			zpos	2
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 220"
+			drawColor	"30 30 30 220"
+		}
+
+		BoxLineTop
+		{
+			ControlName	ImagePanel
+			xpos	1260
+			ypos	182
+			wide	540
+			tall	2
+			zpos	3
+			visible	1
+			scaleImage	1
+			fillColor	"99 99 99 200"
+			drawColor	"99 99 99 200"
+		}
+
+		BoxLineBottom
+		{
+			ControlName	ImagePanel
+			xpos	1260
+			ypos	856
+			wide	540
+			tall	2
+			zpos	3
+			visible	1
+			scaleImage	1
+			fillColor	"99 99 99 200"
+			drawColor	"99 99 99 200"
+		}
+
+		BoxLineLeft
+		{
+			ControlName	ImagePanel
+			xpos	1260
+			ypos	182
+			wide	2
+			tall	676
+			zpos	3
+			visible	1
+			scaleImage	1
+			fillColor	"99 99 99 200"
+			drawColor	"99 99 99 200"
+		}
+
+		BoxLineRight
+		{
+			ControlName	ImagePanel
+			xpos	1798
+			ypos	182
+			wide	2
+			tall	676
+			zpos	3
+			visible	1
+			scaleImage	1
+			fillColor	"99 99 99 200"
+			drawColor	"99 99 99 200"
+		}
+
+		BoxTitle
+		{
+			ControlName	Label
+			xpos	1280
+			ypos	192
+			wide	500
+			tall	40
+			zpos	6
+			visible	1
+			labelText	"ATTACHMENTS"
+			textAlignment	west
+			font	TitleBoldFont
+			fontHeight	32
+			fgcolor_override	"252 198 3 255"
+		}
+
+		BoxImage
+		{
+			ControlName	RuiPanel
+			xpos	1280
+			ypos	240
+			wide	240
+			tall	100
+			zpos	6
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		BoxInfo0
+		{
+			ControlName	Label
+			xpos	1535
+			ypos	250
+			wide	255
+			tall	28
+			zpos	6
+			visible	1
+			labelText	""
+			textAlignment	west
+			font	Default_27
+			fontHeight	22
+			fgcolor_override	"255 255 255 255"
+		}
+
+		BoxInfo1
+		{
+			ControlName	Label
+			xpos	1535
+			ypos	280
+			wide	255
+			tall	28
+			zpos	6
+			visible	1
+			labelText	""
+			textAlignment	west
+			font	Default_27
+			fontHeight	22
+			fgcolor_override	"200 200 200 255"
+		}
+
+		BoxInfo2
+		{
+			ControlName	Label
+			xpos	1535
+			ypos	310
+			wide	255
+			tall	28
+			zpos	6
+			visible	1
+			labelText	""
+			textAlignment	west
+			font	Default_27
+			fontHeight	22
+			fgcolor_override	"200 200 200 255"
+		}
+
+		CatFrame0
+		{
+			ControlName	ImagePanel
+			xpos	1280
+			ypos	352
+			wide	98
+			tall	40
+			zpos	10
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		CatSel0
+		{
+			ControlName	ImagePanel
+			xpos	1280
+			ypos	352
+			wide	98
+			tall	40
+			zpos	11
+			visible	0
+			scaleImage	1
+			fillColor	"105 63 1 220"
+			drawColor	"105 63 1 220"
+		}
+
+		CatText0
+		{
+			ControlName	Label
+			xpos	1280
+			ypos	352
+			wide	98
+			tall	40
+			zpos	12
+			visible	1
+			labelText	""
+			textAlignment	center
+			font	TitleBoldFont
+			fontHeight	20
+			fgcolor_override	"255 255 255 255"
+		}
+
+		CatButton0
+		{
+			ControlName	RuiButton
+			xpos	1280
+			ypos	352
+			wide	98
+			tall	40
+			zpos	14
+			visible	1
+			enabled	1
+			scriptID	0
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		CatFrame1
+		{
+			ControlName	ImagePanel
+			xpos	1382
+			ypos	352
+			wide	98
+			tall	40
+			zpos	10
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		CatSel1
+		{
+			ControlName	ImagePanel
+			xpos	1382
+			ypos	352
+			wide	98
+			tall	40
+			zpos	11
+			visible	0
+			scaleImage	1
+			fillColor	"105 63 1 220"
+			drawColor	"105 63 1 220"
+		}
+
+		CatText1
+		{
+			ControlName	Label
+			xpos	1382
+			ypos	352
+			wide	98
+			tall	40
+			zpos	12
+			visible	1
+			labelText	""
+			textAlignment	center
+			font	TitleBoldFont
+			fontHeight	20
+			fgcolor_override	"255 255 255 255"
+		}
+
+		CatButton1
+		{
+			ControlName	RuiButton
+			xpos	1382
+			ypos	352
+			wide	98
+			tall	40
+			zpos	14
+			visible	1
+			enabled	1
+			scriptID	1
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		CatFrame2
+		{
+			ControlName	ImagePanel
+			xpos	1484
+			ypos	352
+			wide	98
+			tall	40
+			zpos	10
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		CatSel2
+		{
+			ControlName	ImagePanel
+			xpos	1484
+			ypos	352
+			wide	98
+			tall	40
+			zpos	11
+			visible	0
+			scaleImage	1
+			fillColor	"105 63 1 220"
+			drawColor	"105 63 1 220"
+		}
+
+		CatText2
+		{
+			ControlName	Label
+			xpos	1484
+			ypos	352
+			wide	98
+			tall	40
+			zpos	12
+			visible	1
+			labelText	""
+			textAlignment	center
+			font	TitleBoldFont
+			fontHeight	20
+			fgcolor_override	"255 255 255 255"
+		}
+
+		CatButton2
+		{
+			ControlName	RuiButton
+			xpos	1484
+			ypos	352
+			wide	98
+			tall	40
+			zpos	14
+			visible	1
+			enabled	1
+			scriptID	2
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		CatFrame3
+		{
+			ControlName	ImagePanel
+			xpos	1586
+			ypos	352
+			wide	98
+			tall	40
+			zpos	10
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		CatSel3
+		{
+			ControlName	ImagePanel
+			xpos	1586
+			ypos	352
+			wide	98
+			tall	40
+			zpos	11
+			visible	0
+			scaleImage	1
+			fillColor	"105 63 1 220"
+			drawColor	"105 63 1 220"
+		}
+
+		CatText3
+		{
+			ControlName	Label
+			xpos	1586
+			ypos	352
+			wide	98
+			tall	40
+			zpos	12
+			visible	1
+			labelText	""
+			textAlignment	center
+			font	TitleBoldFont
+			fontHeight	20
+			fgcolor_override	"255 255 255 255"
+		}
+
+		CatButton3
+		{
+			ControlName	RuiButton
+			xpos	1586
+			ypos	352
+			wide	98
+			tall	40
+			zpos	14
+			visible	1
+			enabled	1
+			scriptID	3
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		CatFrame4
+		{
+			ControlName	ImagePanel
+			xpos	1688
+			ypos	352
+			wide	98
+			tall	40
+			zpos	10
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		CatSel4
+		{
+			ControlName	ImagePanel
+			xpos	1688
+			ypos	352
+			wide	98
+			tall	40
+			zpos	11
+			visible	0
+			scaleImage	1
+			fillColor	"105 63 1 220"
+			drawColor	"105 63 1 220"
+		}
+
+		CatText4
+		{
+			ControlName	Label
+			xpos	1688
+			ypos	352
+			wide	98
+			tall	40
+			zpos	12
+			visible	1
+			labelText	""
+			textAlignment	center
+			font	TitleBoldFont
+			fontHeight	20
+			fgcolor_override	"255 255 255 255"
+		}
+
+		CatButton4
+		{
+			ControlName	RuiButton
+			xpos	1688
+			ypos	352
+			wide	98
+			tall	40
+			zpos	14
+			visible	1
+			enabled	1
+			scriptID	4
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		ItemFrame0
+		{
+			ControlName	ImagePanel
+			xpos	1280
+			ypos	410
+			wide	84
+			tall	84
+			zpos	20
+			visible	1
+			scaleImage	1
+			fillColor	"45 45 45 230"
+			drawColor	"45 45 45 230"
+		}
+
+		ItemSel0
+		{
+			ControlName	ImagePanel
+			xpos	1276
+			ypos	406
+			wide	92
+			tall	102
+			zpos	19
+			visible	0
+			scaleImage	1
+			fillColor	"252 198 3 170"
+			drawColor	"252 198 3 170"
+		}
+
+		ItemIcon0
+		{
+			ControlName	RuiPanel
+			xpos	1286
+			ypos	416
+			wide	72
+			tall	72
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemTier0
+		{
+			ControlName	RuiPanel
+			xpos	1280
+			ypos	496
+			wide	84
+			tall	8
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemButton0
+		{
+			ControlName	RuiButton
+			xpos	1280
+			ypos	410
+			wide	84
+			tall	94
+			zpos	26
+			visible	1
+			enabled	1
+			scriptID	0
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		ItemFrame1
+		{
+			ControlName	ImagePanel
+			xpos	1380
+			ypos	410
+			wide	84
+			tall	84
+			zpos	20
+			visible	1
+			scaleImage	1
+			fillColor	"45 45 45 230"
+			drawColor	"45 45 45 230"
+		}
+
+		ItemSel1
+		{
+			ControlName	ImagePanel
+			xpos	1376
+			ypos	406
+			wide	92
+			tall	102
+			zpos	19
+			visible	0
+			scaleImage	1
+			fillColor	"252 198 3 170"
+			drawColor	"252 198 3 170"
+		}
+
+		ItemIcon1
+		{
+			ControlName	RuiPanel
+			xpos	1386
+			ypos	416
+			wide	72
+			tall	72
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemTier1
+		{
+			ControlName	RuiPanel
+			xpos	1380
+			ypos	496
+			wide	84
+			tall	8
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemButton1
+		{
+			ControlName	RuiButton
+			xpos	1380
+			ypos	410
+			wide	84
+			tall	94
+			zpos	26
+			visible	1
+			enabled	1
+			scriptID	1
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		ItemFrame2
+		{
+			ControlName	ImagePanel
+			xpos	1480
+			ypos	410
+			wide	84
+			tall	84
+			zpos	20
+			visible	1
+			scaleImage	1
+			fillColor	"45 45 45 230"
+			drawColor	"45 45 45 230"
+		}
+
+		ItemSel2
+		{
+			ControlName	ImagePanel
+			xpos	1476
+			ypos	406
+			wide	92
+			tall	102
+			zpos	19
+			visible	0
+			scaleImage	1
+			fillColor	"252 198 3 170"
+			drawColor	"252 198 3 170"
+		}
+
+		ItemIcon2
+		{
+			ControlName	RuiPanel
+			xpos	1486
+			ypos	416
+			wide	72
+			tall	72
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemTier2
+		{
+			ControlName	RuiPanel
+			xpos	1480
+			ypos	496
+			wide	84
+			tall	8
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemButton2
+		{
+			ControlName	RuiButton
+			xpos	1480
+			ypos	410
+			wide	84
+			tall	94
+			zpos	26
+			visible	1
+			enabled	1
+			scriptID	2
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		ItemFrame3
+		{
+			ControlName	ImagePanel
+			xpos	1580
+			ypos	410
+			wide	84
+			tall	84
+			zpos	20
+			visible	1
+			scaleImage	1
+			fillColor	"45 45 45 230"
+			drawColor	"45 45 45 230"
+		}
+
+		ItemSel3
+		{
+			ControlName	ImagePanel
+			xpos	1576
+			ypos	406
+			wide	92
+			tall	102
+			zpos	19
+			visible	0
+			scaleImage	1
+			fillColor	"252 198 3 170"
+			drawColor	"252 198 3 170"
+		}
+
+		ItemIcon3
+		{
+			ControlName	RuiPanel
+			xpos	1586
+			ypos	416
+			wide	72
+			tall	72
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemTier3
+		{
+			ControlName	RuiPanel
+			xpos	1580
+			ypos	496
+			wide	84
+			tall	8
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemButton3
+		{
+			ControlName	RuiButton
+			xpos	1580
+			ypos	410
+			wide	84
+			tall	94
+			zpos	26
+			visible	1
+			enabled	1
+			scriptID	3
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		ItemFrame4
+		{
+			ControlName	ImagePanel
+			xpos	1680
+			ypos	410
+			wide	84
+			tall	84
+			zpos	20
+			visible	1
+			scaleImage	1
+			fillColor	"45 45 45 230"
+			drawColor	"45 45 45 230"
+		}
+
+		ItemSel4
+		{
+			ControlName	ImagePanel
+			xpos	1676
+			ypos	406
+			wide	92
+			tall	102
+			zpos	19
+			visible	0
+			scaleImage	1
+			fillColor	"252 198 3 170"
+			drawColor	"252 198 3 170"
+		}
+
+		ItemIcon4
+		{
+			ControlName	RuiPanel
+			xpos	1686
+			ypos	416
+			wide	72
+			tall	72
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemTier4
+		{
+			ControlName	RuiPanel
+			xpos	1680
+			ypos	496
+			wide	84
+			tall	8
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemButton4
+		{
+			ControlName	RuiButton
+			xpos	1680
+			ypos	410
+			wide	84
+			tall	94
+			zpos	26
+			visible	1
+			enabled	1
+			scriptID	4
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		ItemFrame5
+		{
+			ControlName	ImagePanel
+			xpos	1280
+			ypos	520
+			wide	84
+			tall	84
+			zpos	20
+			visible	1
+			scaleImage	1
+			fillColor	"45 45 45 230"
+			drawColor	"45 45 45 230"
+		}
+
+		ItemSel5
+		{
+			ControlName	ImagePanel
+			xpos	1276
+			ypos	516
+			wide	92
+			tall	102
+			zpos	19
+			visible	0
+			scaleImage	1
+			fillColor	"252 198 3 170"
+			drawColor	"252 198 3 170"
+		}
+
+		ItemIcon5
+		{
+			ControlName	RuiPanel
+			xpos	1286
+			ypos	526
+			wide	72
+			tall	72
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemTier5
+		{
+			ControlName	RuiPanel
+			xpos	1280
+			ypos	606
+			wide	84
+			tall	8
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemButton5
+		{
+			ControlName	RuiButton
+			xpos	1280
+			ypos	520
+			wide	84
+			tall	94
+			zpos	26
+			visible	1
+			enabled	1
+			scriptID	5
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		ItemFrame6
+		{
+			ControlName	ImagePanel
+			xpos	1380
+			ypos	520
+			wide	84
+			tall	84
+			zpos	20
+			visible	1
+			scaleImage	1
+			fillColor	"45 45 45 230"
+			drawColor	"45 45 45 230"
+		}
+
+		ItemSel6
+		{
+			ControlName	ImagePanel
+			xpos	1376
+			ypos	516
+			wide	92
+			tall	102
+			zpos	19
+			visible	0
+			scaleImage	1
+			fillColor	"252 198 3 170"
+			drawColor	"252 198 3 170"
+		}
+
+		ItemIcon6
+		{
+			ControlName	RuiPanel
+			xpos	1386
+			ypos	526
+			wide	72
+			tall	72
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemTier6
+		{
+			ControlName	RuiPanel
+			xpos	1380
+			ypos	606
+			wide	84
+			tall	8
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemButton6
+		{
+			ControlName	RuiButton
+			xpos	1380
+			ypos	520
+			wide	84
+			tall	94
+			zpos	26
+			visible	1
+			enabled	1
+			scriptID	6
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		ItemFrame7
+		{
+			ControlName	ImagePanel
+			xpos	1480
+			ypos	520
+			wide	84
+			tall	84
+			zpos	20
+			visible	1
+			scaleImage	1
+			fillColor	"45 45 45 230"
+			drawColor	"45 45 45 230"
+		}
+
+		ItemSel7
+		{
+			ControlName	ImagePanel
+			xpos	1476
+			ypos	516
+			wide	92
+			tall	102
+			zpos	19
+			visible	0
+			scaleImage	1
+			fillColor	"252 198 3 170"
+			drawColor	"252 198 3 170"
+		}
+
+		ItemIcon7
+		{
+			ControlName	RuiPanel
+			xpos	1486
+			ypos	526
+			wide	72
+			tall	72
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemTier7
+		{
+			ControlName	RuiPanel
+			xpos	1480
+			ypos	606
+			wide	84
+			tall	8
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemButton7
+		{
+			ControlName	RuiButton
+			xpos	1480
+			ypos	520
+			wide	84
+			tall	94
+			zpos	26
+			visible	1
+			enabled	1
+			scriptID	7
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		ItemFrame8
+		{
+			ControlName	ImagePanel
+			xpos	1580
+			ypos	520
+			wide	84
+			tall	84
+			zpos	20
+			visible	1
+			scaleImage	1
+			fillColor	"45 45 45 230"
+			drawColor	"45 45 45 230"
+		}
+
+		ItemSel8
+		{
+			ControlName	ImagePanel
+			xpos	1576
+			ypos	516
+			wide	92
+			tall	102
+			zpos	19
+			visible	0
+			scaleImage	1
+			fillColor	"252 198 3 170"
+			drawColor	"252 198 3 170"
+		}
+
+		ItemIcon8
+		{
+			ControlName	RuiPanel
+			xpos	1586
+			ypos	526
+			wide	72
+			tall	72
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemTier8
+		{
+			ControlName	RuiPanel
+			xpos	1580
+			ypos	606
+			wide	84
+			tall	8
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemButton8
+		{
+			ControlName	RuiButton
+			xpos	1580
+			ypos	520
+			wide	84
+			tall	94
+			zpos	26
+			visible	1
+			enabled	1
+			scriptID	8
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		ItemFrame9
+		{
+			ControlName	ImagePanel
+			xpos	1680
+			ypos	520
+			wide	84
+			tall	84
+			zpos	20
+			visible	1
+			scaleImage	1
+			fillColor	"45 45 45 230"
+			drawColor	"45 45 45 230"
+		}
+
+		ItemSel9
+		{
+			ControlName	ImagePanel
+			xpos	1676
+			ypos	516
+			wide	92
+			tall	102
+			zpos	19
+			visible	0
+			scaleImage	1
+			fillColor	"252 198 3 170"
+			drawColor	"252 198 3 170"
+		}
+
+		ItemIcon9
+		{
+			ControlName	RuiPanel
+			xpos	1686
+			ypos	526
+			wide	72
+			tall	72
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemTier9
+		{
+			ControlName	RuiPanel
+			xpos	1680
+			ypos	606
+			wide	84
+			tall	8
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemButton9
+		{
+			ControlName	RuiButton
+			xpos	1680
+			ypos	520
+			wide	84
+			tall	94
+			zpos	26
+			visible	1
+			enabled	1
+			scriptID	9
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		ItemFrame10
+		{
+			ControlName	ImagePanel
+			xpos	1280
+			ypos	630
+			wide	84
+			tall	84
+			zpos	20
+			visible	1
+			scaleImage	1
+			fillColor	"45 45 45 230"
+			drawColor	"45 45 45 230"
+		}
+
+		ItemSel10
+		{
+			ControlName	ImagePanel
+			xpos	1276
+			ypos	626
+			wide	92
+			tall	102
+			zpos	19
+			visible	0
+			scaleImage	1
+			fillColor	"252 198 3 170"
+			drawColor	"252 198 3 170"
+		}
+
+		ItemIcon10
+		{
+			ControlName	RuiPanel
+			xpos	1286
+			ypos	636
+			wide	72
+			tall	72
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemTier10
+		{
+			ControlName	RuiPanel
+			xpos	1280
+			ypos	716
+			wide	84
+			tall	8
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemButton10
+		{
+			ControlName	RuiButton
+			xpos	1280
+			ypos	630
+			wide	84
+			tall	94
+			zpos	26
+			visible	1
+			enabled	1
+			scriptID	10
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		ItemFrame11
+		{
+			ControlName	ImagePanel
+			xpos	1380
+			ypos	630
+			wide	84
+			tall	84
+			zpos	20
+			visible	1
+			scaleImage	1
+			fillColor	"45 45 45 230"
+			drawColor	"45 45 45 230"
+		}
+
+		ItemSel11
+		{
+			ControlName	ImagePanel
+			xpos	1376
+			ypos	626
+			wide	92
+			tall	102
+			zpos	19
+			visible	0
+			scaleImage	1
+			fillColor	"252 198 3 170"
+			drawColor	"252 198 3 170"
+		}
+
+		ItemIcon11
+		{
+			ControlName	RuiPanel
+			xpos	1386
+			ypos	636
+			wide	72
+			tall	72
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemTier11
+		{
+			ControlName	RuiPanel
+			xpos	1380
+			ypos	716
+			wide	84
+			tall	8
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemButton11
+		{
+			ControlName	RuiButton
+			xpos	1380
+			ypos	630
+			wide	84
+			tall	94
+			zpos	26
+			visible	1
+			enabled	1
+			scriptID	11
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		ItemFrame12
+		{
+			ControlName	ImagePanel
+			xpos	1480
+			ypos	630
+			wide	84
+			tall	84
+			zpos	20
+			visible	1
+			scaleImage	1
+			fillColor	"45 45 45 230"
+			drawColor	"45 45 45 230"
+		}
+
+		ItemSel12
+		{
+			ControlName	ImagePanel
+			xpos	1476
+			ypos	626
+			wide	92
+			tall	102
+			zpos	19
+			visible	0
+			scaleImage	1
+			fillColor	"252 198 3 170"
+			drawColor	"252 198 3 170"
+		}
+
+		ItemIcon12
+		{
+			ControlName	RuiPanel
+			xpos	1486
+			ypos	636
+			wide	72
+			tall	72
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemTier12
+		{
+			ControlName	RuiPanel
+			xpos	1480
+			ypos	716
+			wide	84
+			tall	8
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemButton12
+		{
+			ControlName	RuiButton
+			xpos	1480
+			ypos	630
+			wide	84
+			tall	94
+			zpos	26
+			visible	1
+			enabled	1
+			scriptID	12
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		ItemFrame13
+		{
+			ControlName	ImagePanel
+			xpos	1580
+			ypos	630
+			wide	84
+			tall	84
+			zpos	20
+			visible	1
+			scaleImage	1
+			fillColor	"45 45 45 230"
+			drawColor	"45 45 45 230"
+		}
+
+		ItemSel13
+		{
+			ControlName	ImagePanel
+			xpos	1576
+			ypos	626
+			wide	92
+			tall	102
+			zpos	19
+			visible	0
+			scaleImage	1
+			fillColor	"252 198 3 170"
+			drawColor	"252 198 3 170"
+		}
+
+		ItemIcon13
+		{
+			ControlName	RuiPanel
+			xpos	1586
+			ypos	636
+			wide	72
+			tall	72
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemTier13
+		{
+			ControlName	RuiPanel
+			xpos	1580
+			ypos	716
+			wide	84
+			tall	8
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemButton13
+		{
+			ControlName	RuiButton
+			xpos	1580
+			ypos	630
+			wide	84
+			tall	94
+			zpos	26
+			visible	1
+			enabled	1
+			scriptID	13
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		ItemFrame14
+		{
+			ControlName	ImagePanel
+			xpos	1680
+			ypos	630
+			wide	84
+			tall	84
+			zpos	20
+			visible	1
+			scaleImage	1
+			fillColor	"45 45 45 230"
+			drawColor	"45 45 45 230"
+		}
+
+		ItemSel14
+		{
+			ControlName	ImagePanel
+			xpos	1676
+			ypos	626
+			wide	92
+			tall	102
+			zpos	19
+			visible	0
+			scaleImage	1
+			fillColor	"252 198 3 170"
+			drawColor	"252 198 3 170"
+		}
+
+		ItemIcon14
+		{
+			ControlName	RuiPanel
+			xpos	1686
+			ypos	636
+			wide	72
+			tall	72
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemTier14
+		{
+			ControlName	RuiPanel
+			xpos	1680
+			ypos	716
+			wide	84
+			tall	8
+			zpos	22
+			visible	1
+			rui	"ui/basic_image.rpak"
+		}
+
+		ItemButton14
+		{
+			ControlName	RuiButton
+			xpos	1680
+			ypos	630
+			wide	84
+			tall	94
+			zpos	26
+			visible	1
+			enabled	1
+			scriptID	14
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		BoxHover
+		{
+			ControlName	Label
+			xpos	1280
+			ypos	742
+			wide	500
+			tall	30
+			zpos	6
+			visible	1
+			labelText	""
+			textAlignment	west
+			font	Default_27
+			fontHeight	24
+			fgcolor_override	"255 255 255 255"
+		}
+
+		BoxSummary0
+		{
+			ControlName	Label
+			xpos	1280
+			ypos	778
+			wide	250
+			tall	26
+			zpos	6
+			visible	1
+			labelText	""
+			textAlignment	west
+			font	Default_27
+			fontHeight	20
+			fgcolor_override	"200 200 200 255"
+		}
+
+		BoxSummary1
+		{
+			ControlName	Label
+			xpos	1280
+			ypos	804
+			wide	250
+			tall	26
+			zpos	6
+			visible	1
+			labelText	""
+			textAlignment	west
+			font	Default_27
+			fontHeight	20
+			fgcolor_override	"200 200 200 255"
+		}
+
+		BoxSummary2
+		{
+			ControlName	Label
+			xpos	1280
+			ypos	830
+			wide	250
+			tall	26
+			zpos	6
+			visible	1
+			labelText	""
+			textAlignment	west
+			font	Default_27
+			fontHeight	20
+			fgcolor_override	"200 200 200 255"
+		}
+
+		BoxSummary3
+		{
+			ControlName	Label
+			xpos	1540
+			ypos	778
+			wide	250
+			tall	26
+			zpos	6
+			visible	1
+			labelText	""
+			textAlignment	west
+			font	Default_27
+			fontHeight	20
+			fgcolor_override	"200 200 200 255"
+		}
+
+		BoxSummary4
+		{
+			ControlName	Label
+			xpos	1540
+			ypos	804
+			wide	250
+			tall	26
+			zpos	6
+			visible	1
+			labelText	""
+			textAlignment	west
+			font	Default_27
+			fontHeight	20
+			fgcolor_override	"200 200 200 255"
+		}
+
+		BackFrame0
+		{
+			ControlName	ImagePanel
+			xpos	120
+			ypos	872
+			wide	180
+			tall	40
+			zpos	5
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		BackSel0
+		{
+			ControlName	ImagePanel
+			xpos	120
+			ypos	872
+			wide	180
+			tall	40
+			zpos	6
+			visible	0
+			scaleImage	1
+			fillColor	"105 63 1 220"
+			drawColor	"105 63 1 220"
+		}
+
+		BackText0
+		{
+			ControlName	Label
+			xpos	120
+			ypos	872
+			wide	180
+			tall	40
+			zpos	7
+			visible	1
+			labelText	"BACK"
+			textAlignment	center
+			font	TitleBoldFont
+			fontHeight	24
+			fgcolor_override	"255 255 255 255"
+		}
+
+		BackButton0
+		{
+			ControlName	RuiButton
+			xpos	120
+			ypos	872
+			wide	180
+			tall	40
+			zpos	9
+			visible	1
+			enabled	1
+			scriptID	0
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		SlotFrame0
+		{
+			ControlName	ImagePanel
+			xpos	560
+			ypos	872
+			wide	200
+			tall	40
+			zpos	5
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		SlotSel0
+		{
+			ControlName	ImagePanel
+			xpos	560
+			ypos	872
+			wide	200
+			tall	40
+			zpos	6
+			visible	0
+			scaleImage	1
+			fillColor	"105 63 1 220"
+			drawColor	"105 63 1 220"
+		}
+
+		SlotText0
+		{
+			ControlName	Label
+			xpos	560
+			ypos	872
+			wide	200
+			tall	40
+			zpos	7
+			visible	1
+			labelText	"PRIMARY"
+			textAlignment	center
+			font	TitleBoldFont
+			fontHeight	24
+			fgcolor_override	"255 255 255 255"
+		}
+
+		SlotButton0
+		{
+			ControlName	RuiButton
+			xpos	560
+			ypos	872
+			wide	200
+			tall	40
+			zpos	9
+			visible	1
+			enabled	1
+			scriptID	0
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		SlotFrame1
+		{
+			ControlName	ImagePanel
+			xpos	780
+			ypos	872
+			wide	200
+			tall	40
+			zpos	5
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		SlotSel1
+		{
+			ControlName	ImagePanel
+			xpos	780
+			ypos	872
+			wide	200
+			tall	40
+			zpos	6
+			visible	0
+			scaleImage	1
+			fillColor	"105 63 1 220"
+			drawColor	"105 63 1 220"
+		}
+
+		SlotText1
+		{
+			ControlName	Label
+			xpos	780
+			ypos	872
+			wide	200
+			tall	40
+			zpos	7
+			visible	1
+			labelText	"SECONDARY"
+			textAlignment	center
+			font	TitleBoldFont
+			fontHeight	24
+			fgcolor_override	"255 255 255 255"
+		}
+
+		SlotButton1
+		{
+			ControlName	RuiButton
+			xpos	780
+			ypos	872
+			wide	200
+			tall	40
+			zpos	9
+			visible	1
+			enabled	1
+			scriptID	1
+			rui	"ui/invisible.rpak"
+			labelText	""
+			sound_focus	"UI_Menu_Focus"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	0.7
+		}
+
+		Status
+		{
+			ControlName	Label
+			xpos	1000
+			ypos	872
+			wide	800
+			tall	40
+			zpos	6
+			visible	1
+			labelText	""
+			textAlignment	east
+			font	Default_27
+			fontHeight	24
+			fgcolor_override	"255 255 255 255"
+		}
+
+		Hint
+		{
+			ControlName	Label
+			xpos	96
+			ypos	930
+			wide	1728
+			tall	30
+			zpos	5
+			visible	1
+			labelText	"Left click: equip in the selected slot   |   Right click: edit attachments only   |   Attachment changes apply instantly   |   Esc: back"
+			textAlignment	center
+			font	Default_27
+			fontHeight	24
+			fgcolor_override	"200 200 200 255"
+		}
+
+		BuyMenu0
+		{
+			ControlName				CNestedPanel
+			xpos					120
+			ypos					250
+			wide					1110
+			tall					600
+			zpos					10
+			visible					0
+			enabled					1
+			controlSettingsFile		"resource/ui/menus/cosmic_aimtrainer/panels/buymenu.res"
+		}
+
+		BuyMenu1
+		{
+			ControlName				CNestedPanel
+			xpos					120
+			ypos					250
+			wide					1110
+			tall					600
+			zpos					10
+			visible					0
+			enabled					1
+			controlSettingsFile		"resource/ui/menus/cosmic_aimtrainer/panels/buymenu.res"
+		}
+
+		BuyMenu2
+		{
+			ControlName				CNestedPanel
+			xpos					120
+			ypos					250
+			wide					1110
+			tall					600
+			zpos					10
+			visible					0
+			enabled					1
+			controlSettingsFile		"resource/ui/menus/cosmic_aimtrainer/panels/buymenu.res"
+		}
+
+		BuyMenu3
+		{
+			ControlName				CNestedPanel
+			xpos					120
+			ypos					250
+			wide					1110
+			tall					600
+			zpos					10
+			visible					0
+			enabled					1
+			controlSettingsFile		"resource/ui/menus/cosmic_aimtrainer/panels/buymenu.res"
+		}
+
+	}
+}

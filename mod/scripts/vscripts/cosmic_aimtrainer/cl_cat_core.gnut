@@ -1,0 +1,688 @@
+// Cosmic Aim Trainer -- client core.
+//
+// Port of the client half of the R5Reloaded Flowstate Aim Trainer:
+//   - remote functions the server calls (CAT_CL_*; signatures must match the
+//     registrations in sh_cat_core.gnut exactly)
+//   - live stats HUD (reuses the original VGUI elements that Flowstate still
+//     ships in resource/ui/flowstate_customhudvgui.res)
+//   - countdown (Countdown/CountdownFrame, overridden in hudscripted_mp.res)
+//   - drill title + description for CAT_PRE_START_TIME (ui/id_dev_text.rpak,
+//     same RUI Flowstate's freeroam trainer uses)
+//   - grenade distance markers
+//   - pushes the cosmic_aimtrainer_<key> ConVars to the server
+//   - hold Reload: finish the running challenge early / reopen the menu
+//
+// Menus live in the UI VM (ui_cat_menus.gnut). The client only forwards.
+
+global function CAT_ClientInit
+
+// Remote functions (server -> client). See CAT_RegisterNetworking.
+global function CAT_CL_OpenMainMenu
+global function CAT_CL_SetChallengeActive
+global function CAT_CL_ChallengeStarting
+global function CAT_CL_ShowResults
+global function CAT_CL_CloseResults
+global function CAT_CL_RestartChallenge
+global function CAT_CL_LiveKills
+global function CAT_CL_LiveShot
+global function CAT_CL_LiveHit
+global function CAT_CL_LiveCrits
+global function CAT_CL_LiveDamage
+global function CAT_CL_ResetLive
+global function CAT_CL_GrenadeMarker
+
+// UI -> client (RunClientScript)
+global function CAT_CL_UI_MenuClosed
+global function CAT_CL_UI_PushSettings
+
+const string CAT_CL_SIGNAL_STOP_HUD = "CAT_CL_StopChallengeHud"
+const string CAT_CL_SIGNAL_STOP_HINT = "CAT_CL_StopHint"
+
+// Hold Reload this long to finish a challenge / reopen the menu.
+const float CAT_HOLD_FINISH_TIME = 1.25
+const float CAT_HOLD_MENU_TIME = 0.75
+const float CAT_HINT_DURATION = 7.0
+const string CAT_HOLD_SOUND = "FiringRangeMu1_UI_Range_Stats_ManualReset_ProgressBar_1P"
+const string CAT_RELOAD_BIND_TOKEN = "%&reload%"
+
+#if NX_PROG
+const int CAT_PAD_RELOAD_BUTTON = BUTTON_Y
+#else
+const int CAT_PAD_RELOAD_BUTTON = BUTTON_X
+#endif
+
+// VGUI element names (flowstate_customhudvgui.res / hudscripted_mp.res).
+const array<string> CAT_LIVE_STATS_ELEMENTS = [
+	"ScreenBlur",
+	"ChallengesStatsFrame",
+	"TitleStats",
+	"ChallengesDummieskilled",
+	"ChallengesDummieskilledValue",
+	"ChallengesAccuracy",
+	"ChallengesAccuracyValue",
+	"ChallengesDamage",
+	"ChallengesDamageValue",
+	"ChallengesHeadshots",
+	"ChallengesHeadshotsValue",
+]
+const array<string> CAT_COUNTDOWN_ELEMENTS = [ "Countdown", "CountdownFrame" ]
+
+struct
+{
+	bool inited = false
+	bool settingsPushed = false   // the extra push on the first main menu
+
+	// state mirrored from the server
+	bool challengeActive = false
+	bool resultsPending = false   // results shown, server waiting for skip/restart
+	int drillId = 0
+	int duration = 0
+	int sessionKills = 0
+
+	// live stats (client-side mirror for the HUD only; results come from the server)
+	int kills = 0
+	int shotsHit = 0
+	int totalShots = 0
+	int damageDone = 0
+	int damagePossible = 0
+	int crits = 0
+
+	bool holdThreadRunning = false
+	bool canFinishEarly = false   // set once the pre-start window is over
+
+	var hintRui = null
+
+	table<string, var> hudCache = {}
+} file
+
+// --------------------------------------------------------------------------
+// Init (only on the aim trainer playlist)
+
+void function CAT_ClientInit()
+{
+	if ( file.inited )
+		return
+	file.inited = true
+
+	RegisterSignal( CAT_CL_SIGNAL_STOP_HUD )
+	RegisterSignal( CAT_CL_SIGNAL_STOP_HINT )
+
+	AddCallback_EntitiesDidLoad( CAT_CL_OnEntitiesDidLoad )
+
+	// Same idiom as Flowstate's freeroam trainer hold-to-reset:
+	// PC goes through the +reload concommand, gamepads through the button.
+	RegisterConCommandTriggeredCallback( "+reload", CAT_CL_OnReloadPressedPC )
+	RegisterButtonPressedCallback( CAT_PAD_RELOAD_BUTTON, CAT_CL_OnReloadPressedPad )
+
+	printt( CAT_LOG, "client init" )
+}
+
+void function CAT_CL_OnEntitiesDidLoad()
+{
+	CAT_CL_HideLiveStats()
+	CAT_CL_HideCountdown()
+	thread CAT_CL_PushAllSettings_Thread()
+}
+
+// --------------------------------------------------------------------------
+// Helpers
+
+void function CAT_CL_SendCommand( string args )
+{
+	entity player = GetLocalClientPlayer()
+	if ( !IsValid( player ) )
+		return
+	player.ClientCommand( CAT_CLIENT_COMMAND + " " + args )
+}
+
+var function CAT_CL_Hud( string name )
+{
+	if ( name in file.hudCache )
+		return file.hudCache[ name ]
+
+	var elem = null
+	try
+	{
+		elem = HudElement( name )
+	}
+	catch ( err )
+	{
+		printt( CAT_LOG, "missing HUD element", name, err )
+		elem = null
+	}
+	file.hudCache[ name ] <- elem
+	return elem
+}
+
+void function CAT_CL_HudSetVisible( string name, bool visible )
+{
+	var elem = CAT_CL_Hud( name )
+	if ( elem != null )
+		Hud_SetVisible( elem, visible )
+}
+
+void function CAT_CL_HudSetText( string name, string text )
+{
+	var elem = CAT_CL_Hud( name )
+	if ( elem != null )
+		Hud_SetText( elem, text )
+}
+
+int function CAT_CL_ReadSetting( string key )
+{
+	int value = CAT_DefaultSetting( key )
+	try
+	{
+		value = GetConVarInt( "cosmic_aimtrainer_" + key )
+	}
+	catch ( err )
+	{
+		printt( CAT_LOG, "convar missing", key, err )
+	}
+	return CAT_ClampSetting( key, value )
+}
+
+string function CAT_CL_Percent( int part, int whole )
+{
+	if ( whole <= 0 )
+		return "0%"
+	return format( "%.1f", 100.0 * float( part ) / float( whole ) ) + "%"
+}
+
+// --------------------------------------------------------------------------
+// Settings -> server
+
+// Pushes every cosmic_aimtrainer_<key> ConVar. Spread out so a burst of
+// commands never trips the string command quota.
+void function CAT_CL_PushAllSettings_Thread()
+{
+	entity player = GetLocalClientPlayer()
+	float timeout = Time() + 10.0
+	while ( !IsValid( player ) && Time() < timeout )
+	{
+		WaitFrame()
+		player = GetLocalClientPlayer()
+	}
+	if ( !IsValid( player ) )
+		return
+	player.EndSignal( "OnDestroy" )
+
+	foreach ( string key in CAT_SettingKeys() )
+	{
+		CAT_CL_SendCommand( "set " + key + " " + CAT_CL_ReadSetting( key ).tostring() )
+		wait 0.05
+	}
+}
+
+// The UI sends single settings itself; this is for "resend everything".
+void function CAT_CL_UI_PushSettings()
+{
+	if ( !file.inited )
+		return
+	thread CAT_CL_PushAllSettings_Thread()
+}
+
+// --------------------------------------------------------------------------
+// Menu flow
+
+void function CAT_CL_OpenMainMenu( int sessionKills )
+{
+	file.sessionKills = sessionKills
+	file.resultsPending = false
+	file.challengeActive = false
+	CAT_CL_StopChallengeHud()
+
+	// The server session certainly exists by now; push once more in case the
+	// EntitiesDidLoad push arrived before the server created our session.
+	if ( !file.settingsPushed )
+	{
+		file.settingsPushed = true
+		thread CAT_CL_PushAllSettings_Thread()
+	}
+
+	RunUIScript( "CAT_UI_OpenMainMenu", sessionKills )
+	thread CAT_CL_SendLoadoutToUI_Thread()
+}
+
+// Lets the main menu show what the player is actually holding.
+void function CAT_CL_SendLoadoutToUI_Thread()
+{
+	wait 0.3
+	entity player = GetLocalClientPlayer()
+	if ( !IsValid( player ) )
+		return
+
+	string p0 = ""
+	string p1 = ""
+	entity w0 = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 )
+	entity w1 = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_1 )
+	if ( IsValid( w0 ) )
+		p0 = w0.GetWeaponClassName()
+	if ( IsValid( w1 ) )
+		p1 = w1.GetWeaponClassName()
+	RunUIScript( "CAT_UI_SetLoadout", p0, p1 )
+}
+
+void function CAT_CL_SetChallengeActive( bool active )
+{
+	file.challengeActive = active
+	if ( !active )
+	{
+		file.canFinishEarly = false
+		CAT_CL_StopChallengeHud()
+	}
+	RunUIScript( "CAT_UI_SetChallengeActive", active )
+}
+
+void function CAT_CL_ChallengeStarting( int drillId, int duration )
+{
+	file.drillId = drillId
+	file.duration = duration
+	file.challengeActive = true
+	file.resultsPending = false
+	file.canFinishEarly = false
+
+	RunUIScript( "CAT_UI_CloseAll" )
+
+	entity player = GetLocalClientPlayer()
+	if ( IsValid( player ) )
+		ScreenFade( player, 0, 0, 0, 255, 1, 1, FFADE_IN | FFADE_PURGE )
+
+	CAT_CL_StopChallengeHud()
+	CAT_CL_ResetLiveCounters()
+
+	thread CAT_CL_DescriptionThread( drillId )
+	thread CAT_CL_ChallengeHudThread( drillId, duration )
+}
+
+void function CAT_CL_ShowResults( int drillId, int hits, int kills, float accuracy, int damage, int crits, int best, bool isNewBest, int totalShots )
+{
+	file.challengeActive = false
+	file.resultsPending = true
+	CAT_CL_StopChallengeHud()
+	RunUIScript( "CAT_UI_ShowResults", drillId, hits, kills, accuracy, damage, crits, best, isNewBest, totalShots )
+}
+
+void function CAT_CL_CloseResults()
+{
+	file.resultsPending = false
+	RunUIScript( "CAT_UI_CloseResults" )
+}
+
+// Server restarts the same drill right after this; CAT_CL_ChallengeStarting
+// follows and does the real work.
+void function CAT_CL_RestartChallenge( int drillId )
+{
+	file.resultsPending = false
+	RunUIScript( "CAT_UI_CloseAll" )
+	CAT_CL_StopChallengeHud()
+	CAT_CL_ResetLiveCounters()
+}
+
+// --------------------------------------------------------------------------
+// Live stats
+
+void function CAT_CL_LiveKills( int kills )
+{
+	file.kills = kills
+	CAT_CL_HudSetText( "ChallengesDummieskilledValue", kills.tostring() )
+}
+
+void function CAT_CL_LiveShot( int pellets, int possibleDamage )
+{
+	file.totalShots += pellets
+	file.damagePossible += possibleDamage
+	CAT_CL_UpdateAccuracyText()
+	CAT_CL_UpdateDamageText()
+}
+
+void function CAT_CL_LiveHit( int damage )
+{
+	file.shotsHit++
+	file.damageDone += damage
+	CAT_CL_UpdateAccuracyText()
+	CAT_CL_UpdateDamageText()
+}
+
+void function CAT_CL_LiveDamage( int damage )
+{
+	file.damageDone += damage
+	CAT_CL_UpdateDamageText()
+}
+
+void function CAT_CL_LiveCrits( int crits )
+{
+	file.crits = crits
+	CAT_CL_HudSetText( "ChallengesHeadshotsValue", crits.tostring() )
+}
+
+void function CAT_CL_ResetLive()
+{
+	CAT_CL_ResetLiveCounters()
+}
+
+void function CAT_CL_ResetLiveCounters()
+{
+	file.kills = 0
+	file.shotsHit = 0
+	file.totalShots = 0
+	file.damageDone = 0
+	file.damagePossible = 0
+	file.crits = 0
+
+	CAT_CL_HudSetText( "ChallengesDummieskilledValue", "0" )
+	CAT_CL_HudSetText( "ChallengesHeadshotsValue", "0" )
+	CAT_CL_UpdateAccuracyText()
+	CAT_CL_UpdateDamageText()
+}
+
+void function CAT_CL_UpdateAccuracyText()
+{
+	CAT_CL_HudSetText( "ChallengesAccuracyValue", file.shotsHit.tostring() + "/" + file.totalShots.tostring() + " | " + CAT_CL_Percent( file.shotsHit, file.totalShots ) )
+}
+
+void function CAT_CL_UpdateDamageText()
+{
+	CAT_CL_HudSetText( "ChallengesDamageValue", file.damageDone.tostring() + "/" + file.damagePossible.tostring() + " | " + CAT_CL_Percent( file.damageDone, file.damagePossible ) )
+}
+
+void function CAT_CL_ShowLiveStats()
+{
+	foreach ( string name in CAT_LIVE_STATS_ELEMENTS )
+		CAT_CL_HudSetVisible( name, true )
+}
+
+void function CAT_CL_HideLiveStats()
+{
+	foreach ( string name in CAT_LIVE_STATS_ELEMENTS )
+		CAT_CL_HudSetVisible( name, false )
+}
+
+void function CAT_CL_HideCountdown()
+{
+	foreach ( string name in CAT_COUNTDOWN_ELEMENTS )
+		CAT_CL_HudSetVisible( name, false )
+}
+
+// Ends the description, countdown and stats threads and hides everything.
+void function CAT_CL_StopChallengeHud()
+{
+	entity player = GetLocalClientPlayer()
+	if ( IsValid( player ) )
+		Signal( player, CAT_CL_SIGNAL_STOP_HUD )
+	CAT_CL_HideLiveStats()
+	CAT_CL_HideCountdown()
+	CAT_CL_DestroyHint()
+}
+
+// --------------------------------------------------------------------------
+// Challenge HUD threads
+
+// Drill title + description for the pre-start window (original CreateDescriptionRUI).
+void function CAT_CL_DescriptionThread( int drillId )
+{
+	entity player = GetLocalClientPlayer()
+	if ( !IsValid( player ) )
+		return
+	player.EndSignal( "OnDestroy" )
+	player.EndSignal( CAT_CL_SIGNAL_STOP_HUD )
+
+	string text = ""
+	if ( CAT_IsValidDrill( drillId ) )
+	{
+		CATDrillDef d = CAT_GetDrill( drillId )
+		text = d.name + "\n" + d.description
+	}
+
+	WaitFrame()
+
+	UISize screenSize = GetScreenSize()
+	var topo = RuiTopology_CreatePlane( < 0, screenSize.height * -0.1, 0 >, < float( screenSize.width ), 0, 0 >, < 0, float( screenSize.height ), 0 >, false )
+	var rui = RuiCreate( $"ui/id_dev_text.rpak", topo, RUI_DRAW_HUD, 0 )
+	if ( rui == null )
+	{
+		RuiTopology_Destroy( topo )
+		return
+	}
+
+	OnThreadEnd(
+		function() : ( rui, topo )
+		{
+			RuiDestroyIfAlive( rui )
+			RuiTopology_Destroy( topo )
+		}
+	)
+
+	float duration = CAT_PRE_START_TIME - 0.01
+	RuiSetFloat( rui, "startTime", Time() )
+	RuiSetString( rui, "speaker", "" )
+	RuiSetString( rui, "text", text )
+	RuiSetFloat( rui, "duration", duration )
+	RuiSetResolutionToScreenSize( rui )
+
+	wait duration
+}
+
+// Waits out the pre-start, then shows live stats + countdown until the
+// challenge ends (server sends SetChallengeActive(false) / ShowResults).
+void function CAT_CL_ChallengeHudThread( int drillId, int duration )
+{
+	entity player = GetLocalClientPlayer()
+	if ( !IsValid( player ) )
+		return
+	player.EndSignal( "OnDestroy" )
+	player.EndSignal( CAT_CL_SIGNAL_STOP_HUD )
+
+	OnThreadEnd(
+		function() : ()
+		{
+			file.canFinishEarly = false
+			CAT_CL_HideLiveStats()
+			CAT_CL_HideCountdown()
+		}
+	)
+
+	wait CAT_PRE_START_TIME
+	file.canFinishEarly = true
+
+	bool liveStats = true
+	bool usesTimer = true
+	if ( CAT_IsValidDrill( drillId ) )
+	{
+		CATDrillDef d = CAT_GetDrill( drillId )
+		liveStats = d.usesLiveStats
+		usesTimer = d.usesTimer
+	}
+
+	if ( liveStats )
+		CAT_CL_ShowLiveStats()
+
+	thread CAT_CL_ShowHint( CAT_RELOAD_BIND_TOKEN, "Hold to finish the challenge" )
+
+	bool showTimer = usesTimer && duration != CAT_INFINITE_DURATION
+	if ( !showTimer )
+	{
+		WaitForever()
+		return
+	}
+
+	float endTime = Time() + float( duration )
+	CAT_CL_HudSetText( "Countdown", duration.tostring() )
+	foreach ( string name in CAT_COUNTDOWN_ELEMENTS )
+		CAT_CL_HudSetVisible( name, true )
+
+	while ( true )
+	{
+		int remaining = maxint( 0, int( ceil( endTime - Time() ) ) )
+		CAT_CL_HudSetText( "Countdown", remaining.tostring() )
+		wait 0.1
+	}
+}
+
+// --------------------------------------------------------------------------
+// Input hint (same RUI as the freeroam trainer's restart prompt)
+
+void function CAT_CL_ShowHint( string buttonToken, string hintText )
+{
+	entity player = GetLocalClientPlayer()
+	if ( !IsValid( player ) )
+		return
+
+	CAT_CL_DestroyHint()
+	player.EndSignal( "OnDestroy" )
+	player.EndSignal( CAT_CL_SIGNAL_STOP_HINT )
+
+	var rui = CreateFullscreenRui( $"ui/tutorial_hint_line.rpak" )
+	if ( rui == null )
+		return
+	file.hintRui = rui
+
+	RuiSetString( rui, "buttonText", buttonToken )
+	RuiSetString( rui, "gamepadButtonText", buttonToken )
+	RuiSetString( rui, "hintText", hintText )
+	RuiSetInt( rui, "hintOffset", 0 )
+	RuiSetBool( rui, "hideWithMenus", true )
+
+	OnThreadEnd(
+		function() : ( rui )
+		{
+			RuiDestroyIfAlive( rui )
+			if ( file.hintRui == rui )
+				file.hintRui = null
+		}
+	)
+
+	wait CAT_HINT_DURATION
+}
+
+void function CAT_CL_DestroyHint()
+{
+	entity player = GetLocalClientPlayer()
+	if ( IsValid( player ) )
+		Signal( player, CAT_CL_SIGNAL_STOP_HINT )
+	if ( file.hintRui != null )
+	{
+		RuiDestroyIfAlive( file.hintRui )
+		file.hintRui = null
+	}
+}
+
+// UI closed the aim trainer menu while idle: tell the player how to get back.
+void function CAT_CL_UI_MenuClosed()
+{
+	if ( !file.inited || file.challengeActive )
+		return
+	thread CAT_CL_ShowHint( CAT_RELOAD_BIND_TOKEN, "Hold to open the Aim Trainer menu" )
+}
+
+// --------------------------------------------------------------------------
+// Hold Reload
+//   - during a challenge (after the pre-start): finish early -> results
+//   - idle (no challenge, no results pending): reopen the main menu
+// Menus swallow game input, so this never fires while a menu is open.
+
+void function CAT_CL_OnReloadPressedPC( entity player )
+{
+	CAT_CL_TryStartHold()
+}
+
+void function CAT_CL_OnReloadPressedPad( var button )
+{
+	CAT_CL_TryStartHold()
+}
+
+void function CAT_CL_TryStartHold()
+{
+	if ( !file.inited || file.holdThreadRunning )
+		return
+	if ( file.resultsPending )
+		return
+	if ( file.challengeActive && !file.canFinishEarly )
+		return
+	thread CAT_CL_HoldThread( file.challengeActive )
+}
+
+bool function CAT_CL_IsReloadHeld( entity player )
+{
+	return player.IsInputCommandHeld( IN_RELOAD ) || InputIsButtonDown( CAT_PAD_RELOAD_BUTTON )
+}
+
+void function CAT_CL_HoldThread( bool duringChallenge )
+{
+	entity player = GetLocalClientPlayer()
+	if ( !IsValid( player ) )
+		return
+	player.EndSignal( "OnDestroy" )
+
+	file.holdThreadRunning = true
+	OnThreadEnd(
+		function() : ( player )
+		{
+			file.holdThreadRunning = false
+			if ( IsValid( player ) )
+				StopSoundOnEntity( player, CAT_HOLD_SOUND )
+		}
+	)
+
+	float holdTime = duringChallenge ? CAT_HOLD_FINISH_TIME : CAT_HOLD_MENU_TIME
+	float endTime = Time() + holdTime
+	if ( duringChallenge )
+		EmitSoundOnEntity( player, CAT_HOLD_SOUND )
+
+	while ( Time() < endTime )
+	{
+		WaitFrame()
+		if ( !CAT_CL_IsReloadHeld( player ) )
+			return
+		// state changed under us (challenge ended, results opened...)
+		if ( file.challengeActive != duringChallenge || file.resultsPending )
+			return
+	}
+
+	if ( duringChallenge )
+	{
+		printt( CAT_LOG, "hold reload: finish challenge" )
+		CAT_CL_DestroyHint()
+		CAT_CL_SendCommand( "exit" )
+	}
+	else
+	{
+		printt( CAT_LOG, "hold reload: open menu" )
+		CAT_CL_DestroyHint()
+		CAT_CL_SendCommand( "menu 1" )
+		RunUIScript( "CAT_UI_OpenMainMenu", file.sessionKills )
+		thread CAT_CL_SendLoadoutToUI_Thread()
+	}
+}
+
+// --------------------------------------------------------------------------
+// Drill helpers
+
+// Grenades drill: distance above each static target.
+void function CAT_CL_GrenadeMarker( entity dummy )
+{
+	entity player = GetLocalViewPlayer()
+	if ( !IsValid( dummy ) || !IsValid( player ) )
+		return
+
+	var rui = AddOverheadIcon( dummy, $"", true, $"ui/overhead_icon_generic.rpak" )
+	if ( rui == null )
+		return
+
+	// Inches -> metres. The original used 0.03, which overstates by ~18%.
+	int metres = int( Distance( dummy.GetOrigin(), player.GetOrigin() ) * 0.0254 + 0.5 )
+
+	// These args exist on the respawn beacon overhead RUI; overhead_icon_generic
+	// is unverified, so each is set separately and a missing one is not fatal.
+	try { RuiSetFloat2( rui, "iconSize", <10, 10, 0> ) } catch ( e1 ) {}
+	try { RuiSetFloat( rui, "distanceFade", 9000 ) } catch ( e2 ) {}
+	try { RuiSetBool( rui, "adsFade", false ) } catch ( e3 ) {}
+	try
+	{
+		RuiSetString( rui, "hint", metres.tostring() + "m" )
+	}
+	catch ( e4 )
+	{
+		printt( CAT_LOG, "overhead_icon_generic has no 'hint' arg", e4 )
+	}
+}

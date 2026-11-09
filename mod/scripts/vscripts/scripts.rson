@@ -1,0 +1,23 @@
+When: "SERVER"
+Scripts:
+[
+	cosmic_aimtrainer/sh_cat_core.gnut
+	cosmic_aimtrainer/sv_cat_core.gnut
+	cosmic_aimtrainer/sv_cat_drills_ground.gnut
+	cosmic_aimtrainer/sv_cat_drills_sky.gnut
+]
+
+When: "CLIENT"
+Scripts:
+[
+	cosmic_aimtrainer/sh_cat_core.gnut
+	cosmic_aimtrainer/cl_cat_core.gnut
+]
+
+When: "UI"
+Scripts:
+[
+	cosmic_aimtrainer/sh_cat_core.gnut
+	cosmic_aimtrainer/ui_cat_menus.gnut
+	cosmic_aimtrainer/ui_cat_weaponselector.gnut
+]

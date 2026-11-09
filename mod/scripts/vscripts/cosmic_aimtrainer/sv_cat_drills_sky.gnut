@@ -1,0 +1,1012 @@
+// Cosmic Aim Trainer -- sky drills (SERVER).
+//
+// Ports of the R5R "Challenges by Colombia" drills that run on the floor built
+// in the sky: floating target, popcorn, bounces, valk ult, grenades, tile
+// frenzy, close fast strafes, fast jumps strafes, smoothbot and skydive.
+//
+// Every drill builds its own floor (CAT_BuildSkyFloor -> per arena slot) and
+// only uses positions derived from that floor or the player, so several
+// players can run sky drills at the same time.
+//
+// Per-dummy / per-mover threads end on the entity's OnDeath/OnDestroy and on
+// the player's CAT_SIGNAL_TIME_OVER / OnDestroy. Everything spawned is tracked
+// by the session (CAT_SpawnDummy / CAT_TrackEnt) so the core cleans it up.
+
+global function CAT_DrillsSky_Init
+
+// The original's FIRINGRANGE_* constants (mp/firing_range.gnut in R5R).
+const asset CAT_SKY_RESPAWN_FX = $"P_impact_shieldbreaker_sparks"
+const asset CAT_SKY_JET_FX = $"P_enemy_jump_jet_ON_trails"
+const asset CAT_SKY_FLICK_TARGET = $"mdl/fx/plasma_sphere_01.rmdl"
+const asset CAT_SKY_BLUE_TARGET = $"mdl/barriers/shooting_range_target_02.rmdl"
+const asset CAT_SKY_TILE = $"mdl/thunderdome/thunderdome_cage_ceiling_256x256_06.rmdl"
+const string CAT_SKY_FLICK_SOUND = "Player.Hitbeep_headshot.Human_3P_vs_1P"
+
+const string CAT_SKY_SND_JUMPPAD = "JumpPad_LaunchPlayer_3p"
+const string CAT_SKY_SND_VALK = "jumpjet_freefall_body_3p_enemy_OLD"
+const string CAT_SKY_SND_FLIGHT = "Survival_InGameFlight_Travel_3P"
+const string CAT_SKY_SND_FLIGHT_LAND = "Survival_InGameFlight_Land_Stop_3P"
+
+const string CAT_SKY_ANIM_FREEFALL_DIVE = "animseq/humans/class/medium/pilot_medium_bloodhound/mp_pilot_freefall_dive.rseq"
+
+const string CAT_SKY_FRAG = "mp_weapon_frag_grenade"
+
+struct
+{
+	table<entity, entity> tileVisuals   // tile frenzy hitbox mover -> visual prop
+} file
+
+// --------------------------------------------------------------------------
+// Init
+
+void function CAT_DrillsSky_Init()
+{
+	PrecacheParticleSystem( CAT_SKY_RESPAWN_FX )
+	PrecacheParticleSystem( CAT_SKY_JET_FX )
+	PrecacheModel( CAT_SKY_FLICK_TARGET )
+	PrecacheModel( CAT_SKY_BLUE_TARGET )
+	PrecacheModel( CAT_SKY_TILE )
+
+	CAT_RegisterDrillStart( eCATDrill.FLOATING_TARGET, CAT_Sky_StartFloatingTarget )
+	CAT_RegisterDrillStart( eCATDrill.POPCORN, CAT_Sky_StartPopcorn )
+	CAT_RegisterDrillStart( eCATDrill.BOUNCES, CAT_Sky_StartBounces )
+	CAT_RegisterDrillStart( eCATDrill.VALK_ULT, CAT_Sky_StartValkUlt )
+	CAT_RegisterDrillStart( eCATDrill.GRENADES, CAT_Sky_StartGrenades )
+	CAT_RegisterDrillStart( eCATDrill.TILE_FRENZY, CAT_Sky_StartTileFrenzy )
+	CAT_RegisterDrillStart( eCATDrill.CLOSE_FAST_STRAFES, CAT_Sky_StartCloseFastStrafes )
+	CAT_RegisterDrillStart( eCATDrill.TAPY_DUCK_STRAFES, CAT_Sky_StartTapyDuckStrafes )
+	CAT_RegisterDrillStart( eCATDrill.SMOOTHBOT, CAT_Sky_StartSmoothbot )
+	CAT_RegisterDrillStart( eCATDrill.SKYDIVE, CAT_Sky_StartSkydive )
+}
+
+// --------------------------------------------------------------------------
+// Shared helpers
+
+// The core's drill thread already has these, but the start function runs in
+// its own (waitthread) thread, so register them here too.
+void function CAT_Sky_PlayerEndSignals( entity player )
+{
+	player.EndSignal( "OnDestroy" )
+	player.EndSignal( CAT_SIGNAL_TIME_OVER )
+}
+
+// Builds the floor, teleports the player and returns where they stand.
+vector function CAT_Sky_Setup( entity player, vector angles )
+{
+	vector pos = CAT_BuildSkyFloor( player )
+	CAT_TeleportPlayer( player, pos, angles )
+	return pos
+}
+
+float function CAT_Sky_FloorZ( entity player )
+{
+	return CAT_GetSkyFloorOrigin( player ).z
+}
+
+int function CAT_Sky_Wrap( int index, int count )
+{
+	return ( ( index % count ) + count ) % count
+}
+
+int function CAT_Sky_RandomSign()
+{
+	return CoinFlip() ? 1 : -1
+}
+
+vector function CAT_Sky_FacePlayerYaw( entity player, vector from )
+{
+	return <0, VectorToAngles( player.GetOrigin() - from ).y, 0>
+}
+
+// Plain script_mover with the empty model (same as the original's hand-built ones).
+entity function CAT_Sky_CreateMover( entity player, vector origin, vector angles )
+{
+	entity mover = CreateExpensiveScriptMover( origin, angles )
+	CAT_TrackEnt( player, mover )
+	return mover
+}
+
+void function CAT_Sky_DestroyParented( entity dummy, entity mover )
+{
+	if ( IsValid( dummy ) )
+	{
+		dummy.ClearParent()
+		dummy.Destroy()
+	}
+	if ( IsValid( mover ) )
+		mover.Destroy()
+}
+
+void function CAT_Sky_AttachJetTrails( entity player, entity npc )
+{
+	if ( !IsValid( npc ) )
+		return
+
+	int fxId = GetParticleSystemIndex( CAT_SKY_JET_FX )
+	array<string> attachments = [ "vent_left", "vent_right" ]
+	foreach ( string attachment in attachments )
+	{
+		int attachId = npc.LookupAttachment( attachment )
+		if ( attachId <= 0 )
+			continue
+		entity fx = StartParticleEffectOnEntity_ReturnEntity( npc, fxId, FX_PATTACH_POINT_FOLLOW, attachId )
+		if ( IsValid( fx ) )
+			CAT_TrackEnt( player, fx )
+	}
+}
+
+// Activity / sequence playback that skips names the model doesn't have
+// instead of erroring (Flowstate's dummy models differ from R5R's).
+void function CAT_Sky_PlayActivity( entity ent, string activity, float blend = 0.1 )
+{
+	if ( !IsValid( ent ) || !ent.Anim_HasActivity( activity ) )
+		return
+	ent.Anim_ScriptedPlayActivityByName( activity, true, blend )
+}
+
+void function CAT_Sky_PlayOnly( entity ent, string anim )
+{
+	if ( !IsValid( ent ) )
+		return
+	if ( ent.Anim_HasActivity( anim ) || ent.Anim_HasSequence( anim ) )
+		ent.Anim_PlayOnly( anim )
+}
+
+// The original's "GraphCapped" curved move: X and Z start offset and converge
+// on moveTo over duration, so the path bends.
+void function CAT_Sky_CurveMove( entity mover, vector moveTo, float xFrom, float zFrom, float duration )
+{
+	float startTime = Time()
+	float endTime = startTime + duration
+	while ( Time() < endTime )
+	{
+		vector target = < GraphCapped( Time(), startTime, endTime, xFrom, moveTo.x ), moveTo.y, GraphCapped( Time(), startTime, endTime, zFrom, moveTo.z ) >
+		mover.NonPhysicsMoveTo( target, endTime - Time(), 0.0, 0.0 )
+		WaitFrame()
+	}
+	mover.NonPhysicsStop()
+}
+
+// --------------------------------------------------------------------------
+// Damage handlers
+
+// Original "CloseFastDummy" target name: always immortal regardless of settings.
+void function CAT_Sky_OnAlwaysImmortalDamaged( entity dummy, var damageInfo )
+{
+	CAT_OnTargetDamaged_Default( dummy, damageInfo )
+
+	dummy.SetShieldHealth( dummy.GetShieldHealthMax() )
+	dummy.SetHealth( dummy.GetMaxHealth() )
+	if ( DamageInfo_GetDamage( damageInfo ) >= float( dummy.GetHealth() + dummy.GetShieldHealth() ) )
+		DamageInfo_SetDamage( damageInfo, 0 )
+}
+
+// Original OnFloatingDummyDamaged: always immortal, only hits while airborne
+// score, every hit knocks the target around.
+void function CAT_Sky_OnFloatingDamaged( entity dummy, var damageInfo )
+{
+	entity attacker = DamageInfo_GetAttacker( damageInfo )
+	if ( !IsValid( attacker ) || !attacker.IsPlayer() || !CAT_HasSession( attacker ) )
+		return
+
+	CAT_ApplyFakeHelmet( dummy, damageInfo )
+
+	float damage = DamageInfo_GetDamage( damageInfo )
+	bool isCrit = IsValidHeadShot( damageInfo, dummy )
+	if ( !dummy.IsOnGround() )
+		CAT_AddHit( attacker, int( damage ), isCrit )
+	else
+		CAT_AddDamageOnly( attacker, int( damage ), isCrit )
+
+	// Always immortal. The original only refilled health (shields can break).
+	dummy.SetHealth( dummy.GetMaxHealth() )
+	if ( damage >= float( dummy.GetHealth() + dummy.GetShieldHealth() ) )
+		DamageInfo_SetDamage( damageInfo, 0 )
+
+	// Knock the target in a random direction.
+	vector angles2 = VectorToAngles( attacker.GetOrigin() - dummy.GetOrigin() )
+	vector up = <0, 0, RandomFloatRange( 250.0, 425.0 ) + damage * 3.0>
+	int random2 = RandomIntRangeInclusive( 1, 5 )
+	if ( random2 <= 3 )
+		dummy.SetVelocity( AnglesToRight( angles2 ) * RandomFloatRange( 128.0, 425.0 ) * float( CAT_Sky_RandomSign() ) + up )
+	else
+		dummy.SetVelocity( AnglesToForward( angles2 ) * RandomFloatRange( 128.0, 256.0 ) + up )
+}
+
+// Grenade dummies: only the explosion counts. Explosion damage has no weapon
+// entity; direct impacts / bullets / melee do, and are ignored entirely.
+void function CAT_Sky_OnGrenadeDummyDamaged( entity dummy, var damageInfo )
+{
+	if ( IsValid( DamageInfo_GetWeapon( damageInfo ) ) )
+	{
+		DamageInfo_SetDamage( damageInfo, 0 )
+		return
+	}
+	CAT_OnTargetDamaged_Default( dummy, damageInfo )
+}
+
+// Original OnTilePropDamaged: any hit pops the tile and counts as hit + kill.
+void function CAT_Sky_OnTileDamaged( entity target, var damageInfo )
+{
+	entity attacker = DamageInfo_GetAttacker( damageInfo )
+	if ( !IsValid( attacker ) || !attacker.IsPlayer() || !CAT_HasSession( attacker ) )
+		return
+
+	EmitSoundOnEntityOnlyToPlayer( attacker, attacker, CAT_SKY_FLICK_SOUND )
+	CAT_AddHit( attacker, int( DamageInfo_GetDamage( damageInfo ) ), false )
+	CAT_AddKill( attacker )
+
+	if ( target in file.tileVisuals )
+	{
+		entity visual = file.tileVisuals[ target ]
+		delete file.tileVisuals[ target ]
+		if ( IsValid( visual ) )
+			visual.Destroy()
+	}
+	target.Destroy()
+}
+
+// --------------------------------------------------------------------------
+// FLOATING TARGET
+
+void function CAT_Sky_StartFloatingTarget( entity player )
+{
+	CAT_Sky_PlayerEndSignals( player )
+	CAT_Sky_Setup( player, <0, -90, 0> )
+	float floorZ = CAT_Sky_FloorZ( player )
+	CAT_WaitForStart( player )
+
+	while ( CAT_IsRunning( player ) )
+	{
+		vector ang = <0, player.GetAngles().y, 0>
+		vector pos = player.GetOrigin() + AnglesToForward( ang ) * 100.0 * CAT_SpawnDistance( player )
+		entity dummy = CAT_SpawnDummy( player, pos, <0, 90, 0>, true, "npc_dummie_combat_trainer", false )
+		AddEntityCallback_OnDamaged( dummy, CAT_Sky_OnFloatingDamaged )
+		AddEntityCallback_OnKilled( dummy, CAT_OnTargetKilled_Default )
+		CAT_Sky_AttachJetTrails( player, dummy )
+
+		// Immortal, so this normally lasts the whole drill.
+		waitthread CAT_Sky_WaitFloatingTarget( dummy, floorZ )
+		wait 0.5
+	}
+}
+
+// Fix: the original never replaced a target knocked off the floor.
+void function CAT_Sky_WaitFloatingTarget( entity dummy, float floorZ )
+{
+	dummy.EndSignal( "OnDeath" )
+	dummy.EndSignal( "OnDestroy" )
+
+	while ( IsValid( dummy ) )
+	{
+		if ( dummy.GetOrigin().z < floorZ - 512.0 )
+		{
+			dummy.Destroy()
+			return
+		}
+		WaitFrame()
+	}
+}
+
+// --------------------------------------------------------------------------
+// POPCORN / BOUNCES
+
+void function CAT_Sky_StartPopcorn( entity player )
+{
+	CAT_Sky_RunPopcorn( player, false )
+}
+
+void function CAT_Sky_StartBounces( entity player )
+{
+	CAT_Sky_RunPopcorn( player, true )
+}
+
+void function CAT_Sky_RunPopcorn( entity player, bool bounces )
+{
+	CAT_Sky_PlayerEndSignals( player )
+	vector standPos = CAT_Sky_Setup( player, <0, -90, 0> )
+	float floorZ = CAT_Sky_FloorZ( player )
+	CAT_WaitForStart( player )
+
+	if ( bounces )
+		thread CAT_Sky_MakePlayerBounce( player, floorZ )
+
+	while ( CAT_IsRunning( player ) )
+	{
+		if ( CAT_GetDummies( player ).len() < 7 )
+			thread CAT_Sky_PopcornDummy( player, floorZ, standPos.z )
+		WaitFrame()
+	}
+}
+
+void function CAT_Sky_PopcornDummy( entity player, float floorZ, float standZ )
+{
+	CAT_Sky_PlayerEndSignals( player )
+
+	float r = float( RandomInt( 6 ) ) / 6.0 * 2.0 * PI
+	vector pos = player.GetOrigin() + 50.0 * CAT_SpawnDistance( player ) * <sin( r ), cos( r ), 0.0>
+	entity dummy = CAT_SpawnDummy( player, pos, <0, 90, 0> )
+	dummy.EndSignal( "OnDeath" )
+	dummy.EndSignal( "OnDestroy" )
+
+	CAT_Sky_AttachJetTrails( player, dummy )
+
+	float lastHop = -1.0
+	while ( IsValid( dummy ) )
+	{
+		// Original CheckDistanceFromPlayer
+		if ( Distance( player.GetOrigin(), dummy.GetOrigin() ) > 1500.0 )
+		{
+			dummy.Destroy()
+			return
+		}
+
+		// Short cooldown so one landing gets one launch (the original re-rolled
+		// the launch and replayed the sound every frame until it left the band).
+		if ( dummy.GetOrigin().z - floorZ < 50.0 && Time() - lastHop > 0.15 )
+		{
+			lastHop = Time()
+			vector playerPos = player.GetOrigin()
+			vector angles2 = VectorToAngles( <playerPos.x, playerPos.y, standZ> - dummy.GetOrigin() )
+			dummy.SetAngles( <0, angles2.y, 0> )
+
+			vector up = AnglesToUp( angles2 ) * RandomFloatRange( 512.0, 1024.0 )
+			int random2 = RandomIntRangeInclusive( 1, 5 )
+			if ( random2 >= 4 )
+				dummy.SetVelocity( AnglesToForward( angles2 ) * 128.0 + up )
+			else
+				dummy.SetVelocity( AnglesToRight( angles2 ) * RandomFloatRange( 128.0, 256.0 ) * float( CAT_Sky_RandomSign() ) + up )
+
+			EmitSoundOnEntity( dummy, CAT_SKY_SND_JUMPPAD )
+		}
+		WaitFrame()
+	}
+}
+
+void function CAT_Sky_MakePlayerBounce( entity player, float floorZ )
+{
+	CAT_Sky_PlayerEndSignals( player )
+	player.EndSignal( "OnDeath" )
+
+	float lastHop = -1.0
+	while ( CAT_IsRunning( player ) )
+	{
+		if ( player.GetOrigin().z - floorZ < 50.0 && Time() - lastHop > 0.15 )
+		{
+			lastHop = Time()
+			vector angles2 = <0, player.GetAngles().y, 0>
+			vector up = AnglesToUp( angles2 ) * RandomFloatRange( 512.0, 1024.0 )
+			if ( RandomIntRangeInclusive( 1, 5 ) == 5 )
+				player.SetVelocity( AnglesToForward( angles2 ) * 128.0 + up )
+			else
+				player.SetVelocity( AnglesToRight( angles2 ) * RandomFloatRange( 128.0, 256.0 ) * float( CAT_Sky_RandomSign() ) + up )
+
+			EmitSoundOnEntity( player, CAT_SKY_SND_JUMPPAD )
+		}
+		WaitFrame()
+	}
+}
+
+// --------------------------------------------------------------------------
+// VALK ULT
+
+void function CAT_Sky_StartValkUlt( entity player )
+{
+	CAT_Sky_PlayerEndSignals( player )
+	CAT_Sky_Setup( player, <0, 180, 0> )
+	CAT_WaitForStart( player )
+
+	while ( CAT_IsRunning( player ) )
+	{
+		if ( CAT_GetDummies( player ).len() < 4 )
+		{
+			thread CAT_Sky_ValkDummy( player )
+			wait 2.5
+		}
+		WaitFrame()
+	}
+}
+
+void function CAT_Sky_ValkDummy( entity player )
+{
+	CAT_Sky_PlayerEndSignals( player )
+
+	vector ang = <0, player.GetAngles().y, 0>
+	float dist = CAT_SpawnDistance( player )
+	vector forwardOffset = AnglesToForward( ang ) * float( RandomIntRange( 100, 500 ) * CAT_Sky_RandomSign() ) * dist
+	vector rightOffset = AnglesToRight( ang ) * float( RandomIntRange( 100, 900 ) * CAT_Sky_RandomSign() )
+	vector pos = player.GetOrigin() + forwardOffset + rightOffset
+
+	entity dummy = CAT_SpawnDummy( player, pos, <0, 180, 0> )
+	dummy.EndSignal( "OnDeath" )
+	dummy.EndSignal( "OnDestroy" )
+
+	OnThreadEnd(
+		function() : ( dummy )
+		{
+			if ( IsValid( dummy ) )
+				dummy.Destroy()
+		}
+	)
+
+	CAT_Sky_AttachJetTrails( player, dummy )
+	EmitSoundOnEntity( dummy, CAT_SKY_SND_VALK )
+
+	// Retail valk ult launch speed / time.
+	float flyingTime = Time() + 5.0
+	while ( Time() <= flyingTime )
+	{
+		vector vel = dummy.GetVelocity()
+		dummy.SetVelocity( <vel.x, vel.y, 1348> )
+		WaitFrame()
+	}
+}
+
+// --------------------------------------------------------------------------
+// GRENADES
+
+void function CAT_Sky_StartGrenades( entity player )
+{
+	CAT_Sky_PlayerEndSignals( player )
+	CAT_Sky_Setup( player, <0, 180, 0> )
+	CAT_GiveDrillWeapon( player, CAT_SKY_FRAG, WEAPON_INVENTORY_SLOT_PRIMARY_0 )
+
+	table<string, bool> state
+	state[ "movementDisabled" ] <- false
+	state[ "invulnerable" ] <- false
+
+	OnThreadEnd(
+		function() : ( player, state )
+		{
+			if ( !IsValid( player ) )
+				return
+			if ( state[ "movementDisabled" ] )
+				player.MovementEnable()
+			if ( state[ "invulnerable" ] )
+				player.ClearInvulnerable()
+		}
+	)
+
+	CAT_WaitForStart( player )
+	player.MovementDisable()
+	state[ "movementDisabled" ] = true
+	player.SetInvulnerable()
+	state[ "invulnerable" ] = true
+
+	thread CAT_Sky_KeepFragAvailable( player )
+
+	vector center = player.GetOrigin()
+	array<vector> directions
+	for ( int i = 0; i < 15; i++ )
+	{
+		float r = float( i ) / 15.0 * 2.0 * PI
+		directions.append( <sin( r ), cos( r ), 0.0> )
+	}
+	directions.randomize()
+	int index = 0
+
+	while ( CAT_IsRunning( player ) )
+	{
+		if ( index == directions.len() )
+		{
+			directions.randomize()
+			index = 0
+		}
+
+		if ( CAT_GetDummies( player ).len() < 4 )
+		{
+			// Fix: the original pushed every dummy 400-700 units along the map's
+			// ground-arena angle (one fixed direction), so some landed next to
+			// the player. Push them outward instead: 1000-1300 units away.
+			vector spot = center + directions[ index ] * ( 600.0 + float( RandomIntRange( 400, 700 ) ) )
+			index++
+
+			entity dummy = CAT_SpawnDummy( player, spot, CAT_Sky_FacePlayerYaw( player, spot ), false, "npc_dummie_combat_trainer", false )
+			DispatchSpawn( dummy )
+			CAT_SetupCommonDummy( player, dummy, false )
+			dummy.DisableNPCFlag( NPC_ALLOW_PATROL | NPC_ALLOW_INVESTIGATE | NPC_NEW_ENEMY_FROM_SOUND )
+			AddEntityCallback_OnDamaged( dummy, CAT_Sky_OnGrenadeDummyDamaged )
+			AddEntityCallback_OnKilled( dummy, CAT_OnTargetKilled_Default )
+
+			Remote_CallFunction_NonReplay( player, "CAT_CL_GrenadeMarker", dummy )
+		}
+		WaitFrame()
+	}
+}
+
+// Replaces the R5R-only "challenges_infinite_grenades" mod: re-give the frag
+// if the slot empties and top the clip back up after every throw.
+void function CAT_Sky_KeepFragAvailable( entity player )
+{
+	CAT_Sky_PlayerEndSignals( player )
+	player.EndSignal( "OnDeath" )
+
+	while ( true )
+	{
+		wait 0.1
+		if ( !CAT_IsRunning( player ) || !IsAlive( player ) )
+			return
+
+		entity weapon = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 )
+		if ( !IsValid( weapon ) )
+		{
+			player.GiveWeapon_NoDeploy( CAT_SKY_FRAG, WEAPON_INVENTORY_SLOT_PRIMARY_0, [], false )
+			player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, WEAPON_INVENTORY_SLOT_PRIMARY_0 )
+			continue
+		}
+
+		if ( weapon.GetWeaponClassName() != CAT_SKY_FRAG )
+			continue
+
+		int maxClip = weapon.GetWeaponPrimaryClipCountMax()
+		if ( weapon.GetWeaponPrimaryClipCount() < maxClip )
+			weapon.SetWeaponPrimaryClipCount( maxClip )
+	}
+}
+
+// --------------------------------------------------------------------------
+// TILE FRENZY
+
+void function CAT_Sky_StartTileFrenzy( entity player )
+{
+	CAT_Sky_PlayerEndSignals( player )
+
+	vector ang = <0, 0, 0>
+	vector pos = CAT_BuildSkyFloor( player )
+	CAT_CreateWall( player, pos - <0, 0, 200> + AnglesToForward( ang ) * 580.0 + AnglesToRight( ang ) * 1180.0, 9, 5, 90 )
+
+	// 5x5 grid of tile spots on a plane in front of the player (yaw 0 -> the
+	// grid runs along world Y/Z, as in the original).
+	vector gridOrigin = pos + AnglesToForward( ang ) * 400.0 + AnglesToRight( ang ) * 100.0
+	int x = int( gridOrigin.x )
+	int y = int( gridOrigin.y )
+	int z = int( gridOrigin.z + 50 )
+	int step = int( 300 * 0.2 )
+	array<vector> locations
+	for ( int i = y; i < y + ( 5 * step ); i += step )
+	{
+		for ( int j = z; j < z + ( 5 * step ); j += step )
+			locations.append( <x, i, j> )
+	}
+	locations.randomize()
+
+	// The player stands on a single tile 100 units above the floor.
+	vector platformPos = pos + <0, 0, 100>
+	CAT_CreateProp( player, CAT_SKY_TILE, platformPos, <0, 0, 0> )
+	CAT_TeleportPlayer( player, platformPos, ang )
+	PutEntityInSafeSpot( player, null, null, platformPos + <0, 0, 128>, platformPos )
+
+	table<string, bool> state
+	state[ "movementDisabled" ] <- false
+	array<entity> targets
+
+	OnThreadEnd(
+		function() : ( player, state, targets )
+		{
+			foreach ( entity t in targets )
+			{
+				if ( t in file.tileVisuals )
+					delete file.tileVisuals[ t ]
+			}
+			if ( IsValid( player ) && state[ "movementDisabled" ] )
+				player.MovementEnable()
+		}
+	)
+
+	CAT_WaitForStart( player )
+	player.MovementDisable()
+	state[ "movementDisabled" ] = true
+
+	int index = 0
+	while ( CAT_IsRunning( player ) )
+	{
+		for ( int i = targets.len() - 1; i >= 0; i-- )
+		{
+			if ( !IsValid( targets[ i ] ) )
+				targets.remove( i )
+		}
+
+		if ( index >= locations.len() )
+		{
+			locations.randomize()
+			index = 0
+		}
+
+		// The original allowed 4 "props" including the platform: 3 targets.
+		if ( targets.len() < 3 )
+		{
+			vector loc = locations[ index ]
+			index++
+
+			entity target = CreateExpensiveScriptMoverModel( CAT_SKY_FLICK_TARGET, loc, VectorToAngles( platformPos - loc ), SOLID_VPHYSICS )
+			CAT_TrackEnt( player, target )
+			target.Hide()
+			target.SetDamageNotifications( true )
+
+			entity visual = CreatePropDynamic( CAT_SKY_BLUE_TARGET, target.GetOrigin(), target.GetAngles(), SOLID_VPHYSICS, -1 )
+			CAT_TrackEnt( player, visual )
+			visual.SetParent( target )
+			visual.SetModelScale( 0.45 )
+			visual.NotSolid()
+
+			file.tileVisuals[ target ] <- visual
+			AddEntityCallback_OnDamaged( target, CAT_Sky_OnTileDamaged )
+			targets.append( target )
+		}
+		WaitFrame()
+	}
+}
+
+// --------------------------------------------------------------------------
+// CLOSE FAST STRAFES
+
+void function CAT_Sky_StartCloseFastStrafes( entity player )
+{
+	CAT_Sky_PlayerEndSignals( player )
+	CAT_Sky_Setup( player, <0, 90, 0> )
+	CAT_WaitForStart( player )
+
+	while ( CAT_IsRunning( player ) )
+	{
+		// The original spawned at a ground-arena-relative spot and immediately
+		// moved the dummy here; spawn here directly.
+		vector ang = <0, player.GetAngles().y, 0>
+		vector pos = player.GetOrigin() + AnglesToForward( ang ) * 100.0 * CAT_SpawnDistance( player )
+		entity dummy = CAT_SpawnDummy( player, pos, CAT_Sky_FacePlayerYaw( player, pos ) )
+
+		waitthread CAT_Sky_CloseFastStrafeMovement( player, dummy )
+		wait 0.5
+	}
+}
+
+void function CAT_Sky_CloseFastStrafeMovement( entity player, entity dummy )
+{
+	CAT_Sky_PlayerEndSignals( player )
+	dummy.EndSignal( "OnDeath" )
+	dummy.EndSignal( "OnDestroy" )
+
+	entity mover = CAT_Sky_CreateMover( player, dummy.GetOrigin(), dummy.GetAngles() )
+	mover.EndSignal( "OnDestroy" )
+	dummy.SetParent( mover )
+
+	OnThreadEnd(
+		function() : ( dummy, mover )
+		{
+			CAT_Sky_DestroyParented( dummy, mover )
+		}
+	)
+
+	float dist = CAT_SpawnDistance( player )
+	while ( IsValid( dummy ) )
+	{
+		vector angles2 = VectorToAngles( player.GetOrigin() - dummy.GetOrigin() )
+		vector sideOffset = Normalize( player.GetRightVector() ) * float( RandomIntRange( 50, 80 ) * CAT_Sky_RandomSign() ) * dist
+		vector frontOffset = Normalize( player.GetForwardVector() ) * float( RandomIntRange( 20, 150 ) ) * dist
+		vector target = player.GetOrigin() + sideOffset + frontOffset
+
+		mover.NonPhysicsMoveTo( target, 0.6 * dist, 0.0, 0.0 )
+		mover.SetAngles( angles2 )
+		dummy.SetAngles( angles2 )
+		wait 0.25
+	}
+}
+
+// --------------------------------------------------------------------------
+// FAST JUMPS STRAFES (tapy duck strafes)
+
+void function CAT_Sky_StartTapyDuckStrafes( entity player )
+{
+	CAT_Sky_PlayerEndSignals( player )
+	CAT_Sky_Setup( player, <0, 90, 0> )
+	CAT_WaitForStart( player )
+
+	while ( CAT_IsRunning( player ) )
+	{
+		// First point of the 300-unit circle the movement thread builds.
+		vector pos = player.GetOrigin() + <0, 300, 0>
+		entity dummy = CAT_SpawnDummy( player, pos, CAT_Sky_FacePlayerYaw( player, pos ) )
+
+		waitthread CAT_Sky_TapyStrafeMovement( player, dummy )
+		wait 0.5
+	}
+}
+
+void function CAT_Sky_TapyStrafeMovement( entity player, entity dummy )
+{
+	CAT_Sky_PlayerEndSignals( player )
+	dummy.EndSignal( "OnDeath" )
+	dummy.EndSignal( "OnDestroy" )
+
+	vector center = player.GetOrigin()
+	array<vector> circle
+	for ( int i = 0; i < 100; i++ )
+	{
+		float r = float( i ) / 100.0 * 2.0 * PI
+		circle.append( center + 300.0 * <sin( r ), cos( r ), 0.0> )
+	}
+
+	int index = 0
+	dummy.SetOrigin( circle[ index ] )
+
+	entity mover = CAT_Sky_CreateMover( player, dummy.GetOrigin(), dummy.GetAngles() )
+	mover.EndSignal( "OnDestroy" )
+	dummy.SetParent( mover )
+
+	OnThreadEnd(
+		function() : ( dummy, mover )
+		{
+			CAT_Sky_DestroyParented( dummy, mover )
+		}
+	)
+
+	while ( IsValid( dummy ) )
+	{
+		dummy.Anim_Stop()
+		int side = CAT_Sky_RandomSign()
+		vector oldOrigin = dummy.GetOrigin()
+
+		// The original's nested rolls had a bug (m3 tested instead of m4) that
+		// made 40% of iterations do nothing and re-roll with no wait. These are
+		// the resulting effective odds: stand 30%, strafe step 53%, jump 17%.
+		int roll = RandomInt( 60 )
+		if ( roll < 18 )
+		{
+			mover.NonPhysicsStop()
+			CAT_Sky_PlayActivity( dummy, "ACT_STAND" )
+			wait 0.15
+		}
+		else if ( roll < 50 )
+		{
+			int stepDir = CAT_Sky_RandomSign()
+			index = CAT_Sky_Wrap( index + stepDir, circle.len() )
+
+			mover.NonPhysicsMoveTo( circle[ index ], 0.15, 0.0, 0.0 )
+			CAT_Sky_PlayOnly( dummy, stepDir < 0 ? "ACT_RUN_RIGHT" : "ACT_RUN_LEFT" )
+			dummy.Anim_DisableUpdatePosition()
+			wait 0.12
+			dummy.Anim_Stop()
+			mover.NonPhysicsStop()
+		}
+		else
+		{
+			// Hop up and to the side, then curve back to the circle spot.
+			thread CAT_Sky_DummyJumpAnim( dummy )
+			vector hopRight = Normalize( dummy.GetRightVector() ) * 10.0 * float( side )
+			vector hopBack = Normalize( dummy.GetForwardVector() ) * -10.0
+			vector hopUp = Normalize( dummy.GetUpVector() ) * 20.0
+			vector moveTo = oldOrigin + hopRight + hopBack + hopUp
+			float curve = 50.0 * float( CAT_Sky_RandomSign() )
+			CAT_Sky_CurveMove( mover, moveTo, moveTo.x + curve, moveTo.z + 30.0, 0.28 )
+
+			vector back = circle[ index ]
+			CAT_Sky_CurveMove( mover, back, back.x - curve, back.z, 0.28 )
+		}
+
+		vector angles2 = VectorToAngles( player.GetOrigin() - dummy.GetOrigin() )
+		mover.SetAngles( angles2 )
+		dummy.SetAngles( angles2 )
+	}
+}
+
+void function CAT_Sky_DummyJumpAnim( entity dummy )
+{
+	dummy.EndSignal( "OnDeath" )
+	dummy.EndSignal( "OnDestroy" )
+
+	CAT_Sky_PlayActivity( dummy, "ACT_MP_JUMP_START" )
+	wait 0.2
+	CAT_Sky_PlayActivity( dummy, "ACT_MP_JUMP_FLOAT" )
+	wait 0.1
+	CAT_Sky_PlayActivity( dummy, "ACT_MP_JUMP_LAND" )
+}
+
+// --------------------------------------------------------------------------
+// SMOOTHBOT
+
+void function CAT_Sky_StartSmoothbot( entity player )
+{
+	CAT_Sky_PlayerEndSignals( player )
+	CAT_Sky_Setup( player, <-25, 90, 0> )
+	CAT_WaitForStart( player )
+
+	while ( CAT_IsRunning( player ) )
+	{
+		// First point of the high circle the movement thread builds.
+		vector pos = player.GetOrigin() + <0, 1000, 500>
+		entity dummy = CAT_SpawnDummy( player, pos, CAT_Sky_FacePlayerYaw( player, pos ), false, "npc_dummie_combat_trainer", false )
+		DispatchSpawn( dummy )
+		CAT_SetupCommonDummy( player, dummy, false )   // original left shields unset
+		AddEntityCallback_OnDamaged( dummy, CAT_Sky_OnAlwaysImmortalDamaged )
+		AddEntityCallback_OnKilled( dummy, CAT_OnTargetKilled_Default )
+
+		waitthread CAT_Sky_SmoothbotMovement( player, dummy )
+		wait 0.5
+	}
+}
+
+// Alternates a pass close in front of the player with a sweep out to a point
+// on a high (1000 units out, +500) or low (500 out) circle.
+void function CAT_Sky_SmoothbotMovement( entity player, entity dummy )
+{
+	CAT_Sky_PlayerEndSignals( player )
+	dummy.EndSignal( "OnDeath" )
+	dummy.EndSignal( "OnDestroy" )
+
+	vector center = player.GetOrigin()
+	array<vector> highCircle
+	array<vector> lowCircle
+	for ( int i = 0; i < 100; i++ )
+	{
+		float r = float( i ) / 100.0 * 2.0 * PI
+		highCircle.append( center + <0, 0, 500> + 1000.0 * <sin( r ), cos( r ), 0.0> )
+		lowCircle.append( center + 500.0 * <sin( r ), cos( r ), 0.0> )
+	}
+
+	int index = 0
+	dummy.SetOrigin( highCircle[ index ] )
+
+	entity mover = CAT_Sky_CreateMover( player, dummy.GetOrigin(), dummy.GetAngles() )
+	mover.EndSignal( "OnDestroy" )
+	dummy.SetParent( mover )
+
+	OnThreadEnd(
+		function() : ( dummy, mover )
+		{
+			CAT_Sky_DestroyParented( dummy, mover )
+		}
+	)
+
+	bool toCircle = false
+	int alternate = CAT_Sky_RandomSign()
+	int toGroundCounter = 0
+	while ( IsValid( dummy ) )
+	{
+		dummy.Anim_Stop()
+		int direction = CAT_Sky_RandomSign()
+		alternate = -alternate
+
+		if ( toCircle )
+		{
+			if ( CoinFlip() || toGroundCounter == 1 )
+			{
+				CAT_Sky_SmoothbotPass( player, mover, highCircle[ index ], alternate, true, false )
+				toGroundCounter = 0
+			}
+			else
+			{
+				toGroundCounter++
+				CAT_Sky_SmoothbotPass( player, mover, lowCircle[ index ], alternate, true, true )
+			}
+
+			toCircle = false
+			index = CAT_Sky_Wrap( index + RandomIntRange( 1, 5 ) * direction, highCircle.len() )
+		}
+		else
+		{
+			CAT_Sky_SmoothbotPass( player, mover, highCircle[ index ], alternate, false, false )
+			toCircle = true
+		}
+	}
+}
+
+// Original CoolScriptMoverMovement. Runs in the caller's thread (its end
+// signals cover the mover, dummy and player).
+void function CAT_Sky_SmoothbotPass( entity player, entity mover, vector endLocation, int alternate, bool toCircle, bool lowerPass )
+{
+	float startTime = Time()
+	float endTime = startTime + 3.0
+
+	vector moveTo
+	if ( toCircle )
+		moveTo = endLocation
+	else
+		moveTo = player.GetOrigin() + player.GetForwardVector() * 100.0 + player.GetRightVector() * float( RandomInt( 150 ) * CAT_Sky_RandomSign() ) + player.GetUpVector() * float( RandomInt( 50 ) )
+
+	float xFrom = moveTo.x + RandomFloatRange( 200.0, 500.0 ) * float( alternate )
+	float zFrom = moveTo.z
+	if ( toCircle && !lowerPass )
+		zFrom += 300.0
+
+	while ( Time() < endTime )
+	{
+		vector faceAngles = VectorToAngles( player.GetOrigin() - mover.GetOrigin() )
+		vector cur = mover.GetAngles()
+		mover.SetAngles( <cur.x, faceAngles.y, cur.z> )
+
+		vector target = < GraphCapped( Time(), startTime, endTime, xFrom, moveTo.x ), moveTo.y, GraphCapped( Time(), startTime, endTime, zFrom, moveTo.z ) >
+		mover.NonPhysicsMoveTo( target, endTime - Time(), 0.0, 0.0 )
+		WaitFrame()
+
+		// Stop early so the target doesn't speed up at the end.
+		if ( Distance( mover.GetOrigin(), moveTo ) < 150.0 )
+			break
+	}
+	mover.NonPhysicsStop()
+}
+
+// --------------------------------------------------------------------------
+// SKYDIVE
+
+void function CAT_Sky_StartSkydive( entity player )
+{
+	CAT_Sky_PlayerEndSignals( player )
+	CAT_Sky_Setup( player, <0, 90, 0> )
+	CAT_WaitForStart( player )
+
+	while ( CAT_IsRunning( player ) )
+	{
+		if ( CAT_GetDummies( player ).len() < 4 )
+		{
+			float r = float( RandomInt( 50 ) ) / 50.0 * 2.0 * PI
+			vector skyPos = player.GetOrigin() + <0, 0, 3000> + 200.0 * CAT_SpawnDistance( player ) * <sin( r ), cos( r ), 0.0>
+
+			entity dummy = CAT_SpawnDummy( player, skyPos, CAT_Sky_FacePlayerYaw( player, skyPos ), true, "npc_training_dummy_trainer" )
+			dummy.DisableNPCFlag( NPC_ALLOW_PATROL | NPC_ALLOW_INVESTIGATE | NPC_NEW_ENEMY_FROM_SOUND )
+			dummy.EnableNPCFlag( NPC_IGNORE_ALL | NPC_DISABLE_SENSING )
+			dummy.SetNoTarget( true )
+			CAT_Sky_AttachJetTrails( player, dummy )
+
+			thread CAT_Sky_SkydiveMovement( player, dummy )
+		}
+		WaitFrame()
+	}
+}
+
+void function CAT_Sky_SkydiveMovement( entity player, entity dummy )
+{
+	CAT_Sky_PlayerEndSignals( player )
+	dummy.EndSignal( "OnDeath" )
+	dummy.EndSignal( "OnDestroy" )
+
+	float r = float( RandomInt( 50 ) ) / 50.0 * 2.0 * PI
+	vector groundPos = player.GetOrigin() + 400.0 * CAT_SpawnDistance( player ) * <sin( r ), cos( r ), 0.0>
+	vector diveAngles = VectorToAngles( groundPos - dummy.GetOrigin() )
+
+	entity mover = CAT_Sky_CreateMover( player, dummy.GetOrigin(), diveAngles )
+	mover.EndSignal( "OnDestroy" )
+	dummy.SetAngles( diveAngles )
+	dummy.SetParent( mover )
+
+	OnThreadEnd(
+		function() : ( dummy, mover )
+		{
+			CAT_Sky_DestroyParented( dummy, mover )
+		}
+	)
+
+	EmitSoundOnEntity( dummy, CAT_SKY_SND_FLIGHT )
+	mover.NonPhysicsMoveTo( groundPos, 4.6, 0.0, 0.0 )
+
+	// The original restarted these every frame; play each once per phase.
+	CAT_Sky_PlayOnly( dummy, CAT_SKY_ANIM_FREEFALL_DIVE )
+	bool landingStarted = false
+	bool anticipating = false
+	while ( IsValid( dummy ) )
+	{
+		float height = dummy.GetOrigin().z - groundPos.z
+
+		if ( height <= 50.0 )
+		{
+			// Landed without being killed: vanish (OnThreadEnd destroys it).
+			StartParticleEffectInWorld( GetParticleSystemIndex( CAT_SKY_RESPAWN_FX ), dummy.GetOrigin(), dummy.GetAngles() )
+			return
+		}
+
+		if ( height <= 750.0 && !landingStarted )
+		{
+			landingStarted = true
+			if ( height > 500.0 )
+				CAT_Sky_PlayActivity( dummy, "ACT_MP_FREEFALL_TRANSITION_TO_ANTICIPATE" )
+			StopSoundOnEntity( dummy, CAT_SKY_SND_FLIGHT )
+			EmitSoundOnEntity( dummy, CAT_SKY_SND_FLIGHT_LAND )
+		}
+
+		if ( height <= 500.0 && !anticipating )
+		{
+			anticipating = true
+			CAT_Sky_PlayActivity( dummy, "ACT_MP_FREEFALL_ANTICIPATE" )
+		}
+
+		WaitFrame()
+	}
+}

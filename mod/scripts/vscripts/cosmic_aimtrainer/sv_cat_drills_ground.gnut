@@ -1,0 +1,841 @@
+// Cosmic Aim Trainer -- ground drills (SERVER).
+//
+// Ported from the R5R aim trainer (_gamemode_aimtrainer.nut):
+//   STRAFING_DUMMY   StartStraferDummyChallenge / StrafeMovement
+//   TARGET_SWITCHING StartSwapFocusDummyChallenge / TargetSwitcthingWatcher
+//   ARCSTARS         StartArcstarsChallenge / Arcstar_OnStick
+//   LIFT             StartLiftUpChallenge / LiftPlayerUp
+//   RUNNING_TARGETS  StartRunningTargetsChallenge / DummyRunningTargetsMovement
+//
+// Every drill runs under the contract in sv_cat_core.gnut. Per-dummy threads end
+// on the dummy's OnDeath/OnDestroy and the player's CAT_SIGNAL_TIME_OVER, and
+// session cleanup may destroy any entity at any time.
+
+global function CAT_DrillsGround_Init
+
+const string CATG_ARCSTAR_WEAPON = "mp_weapon_grenade_emp"
+const asset CATG_ARCSTAR_TRAIL_FX = $"P_grenade_thermite_trail"
+const string CATG_ARCSTAR_SCORE_SOUND = "UI_PostGame_TitanPointIncrease"
+const asset CATG_LIFT_CIRCLE_MODEL = $"mdl/weapons_r5/weapon_tesla_trap/mp_weapon_tesla_trap_ar_trigger_radius.rmdl"
+
+// Ground drop for spawn positions: the original traced down from z = 10000.
+const float CATG_DROP_HEIGHT = 10000.0
+// Dummies further than this from the player are removed (original value).
+const float CATG_MAX_DUMMY_DIST = 3000.0
+
+// Lift geometry (the original's trigger_cylinders).
+const float CATG_LIFT_RADIUS = 70.0
+const float CATG_LIFT_HEIGHT = 1200.0
+const float CATG_LIFT_BELOW = 10.0
+const float CATG_LIFT_TOP_HEIGHT = 250.0
+const float CATG_LIFT_CYCLE = 5.5
+const float CATG_LIFT_PULL_RANGE = 300.0
+const float CATG_LIFT_PULL_STRENGTH_MAX = 50.0
+const float CATG_LIFT_HORIZ_SPEED = 170.0
+const float CATG_LIFT_UP_SPEED = 340.0
+const float CATG_LIFT_TOP_UP_SPEED = 25.0
+// Per-player gravity scale while riding (the original set sv_gravity to 0.01).
+const float CATG_LIFT_GRAVITY = 0.001
+// Player hull used to approximate trigger touching.
+const float CATG_PLAYER_HULL_RADIUS = 16.0
+const float CATG_PLAYER_HULL_HEIGHT = 72.0
+
+// --------------------------------------------------------------------------
+// Init
+
+void function CAT_DrillsGround_Init()
+{
+	PrecacheParticleSystem( CATG_ARCSTAR_TRAIL_FX )
+	PrecacheModel( CATG_LIFT_CIRCLE_MODEL )
+
+	// Global callbacks: they only act on the attacker's own arc star dummies.
+	AddDamageCallbackSourceID( eDamageSourceId.damagedef_ticky_arc_blast, CATG_Arcstar_OnDamage )
+	AddDamageCallbackSourceID( eDamageSourceId.mp_weapon_grenade_emp, CATG_Arcstar_OnDamage )
+
+	CAT_RegisterDrillStart( eCATDrill.STRAFING_DUMMY, CATG_Drill_StrafingDummy )
+	CAT_RegisterDrillStart( eCATDrill.TARGET_SWITCHING, CATG_Drill_TargetSwitching )
+	CAT_RegisterDrillStart( eCATDrill.ARCSTARS, CATG_Drill_Arcstars )
+	CAT_RegisterDrillStart( eCATDrill.LIFT, CATG_Drill_Lift )
+	CAT_RegisterDrillStart( eCATDrill.RUNNING_TARGETS, CATG_Drill_RunningTargets )
+}
+
+// --------------------------------------------------------------------------
+// Shared helpers
+
+void function CATG_EndSignalsPlayer( entity player )
+{
+	player.EndSignal( "OnDestroy" )
+	player.EndSignal( CAT_SIGNAL_TIME_OVER )
+}
+
+void function CATG_TeleportToGround( entity player )
+{
+	CAT_TeleportPlayer( player, CAT_GetGroundPos( player ), CAT_GetGroundAngles( player ) )
+}
+
+// The original's AimTrainerOriginToGround( <x, y, 10000> ).
+vector function CATG_DropToGround( vector pos )
+{
+	float startZ = pos.z < CATG_DROP_HEIGHT ? CATG_DROP_HEIGHT : pos.z + 2000.0
+	return CAT_OriginToGround( <pos.x, pos.y, startZ> )
+}
+
+// Evenly spaced points on a circle at the center's height.
+array<vector> function CATG_Ring( vector center, float radius, int count )
+{
+	array<vector> result
+	for ( int i = 0; i < count; i++ )
+	{
+		float r = float( i ) / float( count ) * 2.0 * PI
+		result.append( center + radius * <sin( r ), cos( r ), 0.0> )
+	}
+	return result
+}
+
+// Random points between minR and maxR around the center. Used when the map has
+// no navmesh instead of the original "no navmesh restart game" message.
+array<vector> function CATG_RandomRing( vector center, int count, float minR, float maxR )
+{
+	array<vector> result
+	for ( int i = 0; i < count; i++ )
+	{
+		vector dir = AnglesToForward( <0, RandomFloatRange( 0.0, 360.0 ), 0> )
+		result.append( center + dir * RandomFloatRange( minR, maxR ) )
+	}
+	return result
+}
+
+// Yaw-only facing from one point toward another.
+vector function CATG_YawTo( vector from, vector to )
+{
+	return <0, VectorToAngles( to - from ).y, 0>
+}
+
+void function CATG_PlayAct( entity ai, string act, float rate )
+{
+	if ( !IsValid( ai ) )
+		return
+	ai.Anim_ScriptedPlayActivityByName( act, true, 0.1 )
+	ai.Anim_SetPlaybackRate( rate )
+}
+
+// Random yaw change used by the running drills: +-45, or +-90 half the time.
+void function CATG_RandomTurn( entity ai )
+{
+	int randomangle = RandomIntRange( -45, 45 )
+	if ( CoinFlip() )
+		randomangle = RandomIntRange( -90, 90 )
+	vector angles = ai.GetAngles() + <0, randomangle, 0>
+	ai.SetAngles( <0, angles.y, 0> )
+}
+
+// Ends the calling thread with the dummy or the challenge. Returns false when
+// the dummy is already gone (the caller should return).
+bool function CATG_EndSignalsDummy( entity ai, entity player )
+{
+	if ( !IsValid( ai ) || !IsValid( player ) )
+		return false
+	ai.EndSignal( "OnDeath" )
+	ai.EndSignal( "OnDestroy" )
+	CATG_EndSignalsPlayer( player )
+	return true
+}
+
+// Port of ClippingAIWorkaround: turns running dummies around in front of walls
+// and pushes them out of geometry. The original's per-frame printt is gone and
+// it now uses the core's hull check (the original's FS_PosCanContainDummy had
+// its result inverted, so it re-placed every dummy every frame).
+void function CATG_ClippingAIWorkaround( entity ai, entity player )
+{
+	if ( !CATG_EndSignalsDummy( ai, player ) )
+		return
+
+	while ( IsValid( ai ) )
+	{
+		vector traceStart = ai.EyePosition()
+		vector traceEnd = traceStart + ai.GetForwardVector() * 50000
+		TraceResults results = TraceLine( traceStart, traceEnd, ai )
+
+		if ( Distance( ai.GetOrigin(), results.endPos ) <= 150 )
+			ai.SetAngles( <0, AnglesCompose( ai.GetAngles(), <0, 180, 0> ).y, 0> )
+
+		if ( !CAT_PosCanContainDummy( ai.GetOrigin() ) )
+			PutEntityInSafeSpot( ai, null, null, ai.GetOrigin() + AnglesToForward( ai.GetAngles() ) * 30, ai.GetOrigin() )
+
+		WaitFrame()
+	}
+}
+
+// --------------------------------------------------------------------------
+// STRAFING DUMMY (1)
+
+void function CATG_Drill_StrafingDummy( entity player )
+{
+	CATG_EndSignalsPlayer( player )
+	CATG_TeleportToGround( player )
+	CAT_WaitForStart( player )
+
+	vector forward = AnglesToForward( CAT_GetGroundAngles( player ) )
+
+	while ( CAT_IsRunning( player ) )
+	{
+		vector dummypos = player.GetOrigin() + forward * 100.0 * CAT_SpawnDistance( player )
+		vector ground = CAT_OriginToGround( dummypos + <0, 0, CATG_DROP_HEIGHT> )
+		entity dummy = CAT_SpawnDummy( player, ground, <0, 0, 0> )
+		dummy.SetOrigin( dummy.GetOrigin() + <0, 0, 1> )
+
+		if ( CAT_StrafeRate( player ) > 0.0 )
+			waitthread CATG_StrafeMovement( dummy, player )
+		else if ( IsValid( dummy ) )
+			WaitSignal( dummy, "OnDeath", "OnDestroy" )
+
+		wait 0.2
+	}
+}
+
+void function CATG_StrafeMovement( entity ai, entity player )
+{
+	if ( !CATG_EndSignalsDummy( ai, player ) )
+		return
+
+	OnThreadEnd(
+		function() : ( ai, player )
+		{
+			CAT_UntrackDummy( player, ai ) // original removed the undefined `dummy` here
+			if ( IsValid( ai ) )
+				ai.Destroy()
+		}
+	)
+
+	float rate = CAT_StrafeRate( player )
+	float waitScale = 1.0 / CAT_StrafeWaitScale( player )
+
+	while ( IsValid( ai ) )
+	{
+		ai.SetAngles( CATG_YawTo( ai.GetOrigin(), player.GetOrigin() ) )
+
+		int random = RandomIntRangeInclusive( 1, 10 )
+		if ( random >= 9 )
+		{
+			CATG_PlayAct( ai, "ACT_STAND", rate )
+			wait RandomFloatRange( 0.05, 0.25 ) * waitScale
+		}
+		else
+		{
+			CATG_PlayAct( ai, "ACT_RUN_RIGHT", rate )
+			wait RandomFloatRange( 0.2, 0.75 ) * waitScale
+			CATG_PlayAct( ai, "ACT_RUN_LEFT", rate )
+			wait RandomFloatRange( 0.2, 0.75 ) * waitScale
+		}
+	}
+}
+
+// --------------------------------------------------------------------------
+// TARGET SWITCHING (2)
+
+void function CATG_Drill_TargetSwitching( entity player )
+{
+	CATG_EndSignalsPlayer( player )
+	CATG_TeleportToGround( player )
+	CAT_WaitForStart( player )
+
+	vector spawnAngles = CAT_GetGroundAngles( player ) * -1
+
+	while ( CAT_IsRunning( player ) )
+	{
+		if ( CAT_GetDummies( player ).len() < 5 )
+		{
+			vector pos = CATG_GetGoodPosForTSDummy( CATG_TSCircleLocations( player ) )
+			entity dummy = CAT_SpawnDummy( player, pos, spawnAngles )
+			PutEntityInSafeSpot( dummy, null, null, dummy.GetOrigin() + AnglesToForward( dummy.GetAngles() ) * 30, dummy.GetOrigin() )
+			dummy.SetOrigin( dummy.GetOrigin() + <0, 0, 5> )
+
+			thread CATG_TargetSwitchingWatcher( dummy, player )
+		}
+		WaitFrame()
+	}
+}
+
+// 20 points on a circle around the player, minus those within 200 units of a
+// live target (the original checked every NPC on the server).
+array<vector> function CATG_TSCircleLocations( entity player )
+{
+	array<vector> ring = CATG_Ring( player.GetOrigin(), 100.0 * CAT_SpawnDistance( player ), 20 )
+	array<entity> dummies = CAT_GetDummies( player )
+
+	array<vector> free
+	foreach ( vector p in ring )
+	{
+		bool blocked = false
+		foreach ( entity d in dummies )
+		{
+			if ( Distance( d.GetOrigin(), p ) < 200 )
+			{
+				blocked = true
+				break
+			}
+		}
+		if ( !blocked )
+			free.append( p )
+	}
+
+	if ( free.len() == 0 )
+		free = ring
+	free.randomize()
+	return free
+}
+
+vector function CATG_GetGoodPosForTSDummy( array<vector> circleLocations )
+{
+	foreach ( vector pos in circleLocations )
+	{
+		if ( CAT_PosCanContainDummy( pos ) )
+			return pos
+	}
+	return circleLocations.getrandom()
+}
+
+void function CATG_TargetSwitchingWatcher( entity ai, entity player )
+{
+	if ( !CATG_EndSignalsDummy( ai, player ) )
+		return
+
+	OnThreadEnd(
+		function() : ( ai, player )
+		{
+			CAT_UntrackDummy( player, ai )
+			if ( IsValid( ai ) )
+				ai.Destroy()
+		}
+	)
+
+	float rate = CAT_StrafeRate( player )
+	float step = 0.4 / CAT_StrafeWaitScale( player )
+
+	WaitFrame()
+	while ( IsValid( ai ) )
+	{
+		ai.SetAngles( CATG_YawTo( ai.GetOrigin(), player.GetOrigin() ) )
+
+		if ( Distance( ai.GetOrigin(), player.GetOrigin() ) > CATG_MAX_DUMMY_DIST )
+			return
+
+		if ( rate <= 0.0 )
+		{
+			WaitFrame()
+			continue
+		}
+
+		int random = RandomIntRangeInclusive( 1, 6 )
+		if ( random <= 3 )
+		{
+			CATG_PlayAct( ai, "ACT_SPRINT_RIGHT", rate )
+			wait step
+			CATG_PlayAct( ai, "ACT_SPRINT_LEFT", rate )
+			wait step
+		}
+		else if ( random <= 5 )
+		{
+			CATG_PlayAct( ai, "ACT_SPRINT_FORWARD", rate )
+			wait step
+			CATG_PlayAct( ai, "ACT_SPRINT_BACKWARD", rate )
+			wait step
+		}
+		else
+		{
+			CATG_PlayAct( ai, "ACT_STRAFE_TO_CROUCH_LEFT", rate )
+			wait step
+			CATG_PlayAct( ai, "ACT_STRAFE_TO_CROUCH_RIGHT", rate )
+			wait step
+		}
+	}
+}
+
+// --------------------------------------------------------------------------
+// ARC STARS (7)
+
+void function CATG_Drill_Arcstars( entity player )
+{
+	CATG_EndSignalsPlayer( player )
+	CATG_TeleportToGround( player )
+
+	// The arc star goes in the ordnance slot. Whatever ordnance the player had
+	// is put back when the drill ends (the core only restores primaries).
+	string oldOrdName = ""
+	array<string> oldOrdMods = []
+	entity oldOrd = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_ANTI_TITAN )
+	if ( IsValid( oldOrd ) )
+	{
+		oldOrdName = oldOrd.GetWeaponClassName()
+		oldOrdMods = oldOrd.GetMods()
+		player.TakeWeaponByEntNow( oldOrd )
+	}
+
+	OnThreadEnd(
+		function() : ( player, oldOrdName, oldOrdMods )
+		{
+			if ( !IsValid( player ) )
+				return
+			entity cur = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_ANTI_TITAN )
+			if ( IsValid( cur ) && cur.GetWeaponClassName() == CATG_ARCSTAR_WEAPON )
+				player.TakeWeaponByEntNow( cur )
+			if ( oldOrdName != "" && IsAlive( player ) && !IsValid( player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_ANTI_TITAN ) ) )
+				player.GiveWeapon_NoDeploy( oldOrdName, WEAPON_INVENTORY_SLOT_ANTI_TITAN, oldOrdMods, false )
+		}
+	)
+
+	CAT_GiveDrillWeapon( player, CATG_ARCSTAR_WEAPON, WEAPON_INVENTORY_SLOT_ANTI_TITAN )
+
+	CAT_WaitForStart( player )
+	thread CATG_ArcstarAmmoThink( player )
+
+	vector spawnAngles = CAT_GetGroundAngles( player ) * -1
+
+	while ( CAT_IsRunning( player ) )
+	{
+		if ( CAT_GetDummies( player ).len() < 5 )
+		{
+			array<vector> ring = CATG_Ring( player.GetOrigin(), 100.0 * CAT_SpawnDistance( player ), 15 )
+			vector pos = CATG_DropToGround( ring.getrandom() )
+
+			entity dummy = CAT_SpawnDummy( player, pos, spawnAngles, false, "npc_dummie_combat_trainer", false )
+			DispatchSpawn( dummy )
+			CAT_SetupCommonDummy( player, dummy, false ) // original: health only, no shields
+			AddEntityCallback_OnDamaged( dummy, CATG_Arcstar_DummyDamaged )
+
+			thread CATG_ArcstarMovementThink( dummy, player )
+		}
+		WaitFrame()
+	}
+}
+
+// Replaces the original "challenges_infinite_arcstars" mod: keep the arc star
+// in the ordnance slot with a full clip.
+void function CATG_ArcstarAmmoThink( entity player )
+{
+	CATG_EndSignalsPlayer( player )
+	player.EndSignal( "OnDeath" )
+
+	while ( CAT_IsRunning( player ) )
+	{
+		entity w = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_ANTI_TITAN )
+		if ( !IsValid( w ) )
+		{
+			if ( IsAlive( player ) )
+				CAT_GiveDrillWeapon( player, CATG_ARCSTAR_WEAPON, WEAPON_INVENTORY_SLOT_ANTI_TITAN )
+		}
+		else if ( w.UsesClipsForAmmo() && w.GetWeaponPrimaryClipCount() < w.GetWeaponPrimaryClipCountMax() )
+		{
+			w.SetWeaponPrimaryClipCount( w.GetWeaponPrimaryClipCountMax() )
+		}
+		wait 0.1
+	}
+}
+
+// Only arc star damage counts on these dummies; the arc star source callback
+// below does the scoring.
+void function CATG_Arcstar_DummyDamaged( entity dummy, var damageInfo )
+{
+	int sourceId = DamageInfo_GetDamageSourceIdentifier( damageInfo )
+	if ( sourceId != eDamageSourceId.damagedef_ticky_arc_blast && sourceId != eDamageSourceId.mp_weapon_grenade_emp )
+		DamageInfo_SetDamage( damageInfo, 0 )
+}
+
+// Port of Arcstar_OnStick. Global callback: only acts when the victim is one of
+// the attacker's tracked arc star dummies. The dummy is untracked right away so
+// the stick damage and the later blast can't both score it.
+void function CATG_Arcstar_OnDamage( entity victim, var damageInfo )
+{
+	entity attacker = DamageInfo_GetAttacker( damageInfo )
+	if ( !IsValid( attacker ) || !attacker.IsPlayer() || victim == attacker )
+		return
+	if ( !CAT_HasSession( attacker ) )
+		return
+
+	CATSession s = CAT_GetSession( attacker )
+	if ( !s.active || s.drillId != eCATDrill.ARCSTARS || !s.dummies.contains( victim ) )
+		return
+
+	int damage = int( DamageInfo_GetDamage( damageInfo ) )
+	DamageInfo_SetDamage( damageInfo, 0 )
+
+	CAT_UntrackDummy( attacker, victim )
+	CAT_AddHit( attacker, damage, false )
+	CAT_AddKill( attacker )
+	EmitSoundOnEntityOnlyToPlayer( attacker, attacker, CATG_ARCSTAR_SCORE_SOUND )
+
+	thread CATG_Arcstar_RemoveStuck( victim, DamageInfo_GetInflictor( damageInfo ) )
+}
+
+// Next frame (not inside the damage callback): remove the dummy and the arc
+// star stuck to it, so the star's blast can't score a second dummy.
+void function CATG_Arcstar_RemoveStuck( entity victim, entity inflictor )
+{
+	WaitFrame()
+	if ( IsValid( inflictor ) && inflictor.IsProjectile() )
+		inflictor.Destroy()
+	if ( IsValid( victim ) )
+		victim.Destroy()
+}
+
+void function CATG_ArcstarMovementThink( entity ai, entity player )
+{
+	if ( !CATG_EndSignalsDummy( ai, player ) )
+		return
+
+	array<entity> fx
+	OnThreadEnd(
+		function() : ( ai, player, fx )
+		{
+			foreach ( entity e in fx )
+			{
+				if ( IsValid( e ) )
+					e.Destroy()
+			}
+			CAT_UntrackDummy( player, ai )
+			if ( IsValid( ai ) )
+				ai.Destroy()
+		}
+	)
+
+	float rate = CAT_StrafeRate( player )
+
+	CATG_RandomTurn( ai )
+
+	if ( RandomIntRangeInclusive( 1, 10 ) == 1 )
+	{
+		CATG_PlayAct( ai, CoinFlip() ? "ACT_SPRINT_LEFT" : "ACT_SPRINT_RIGHT", rate )
+	}
+	else if ( RandomIntRangeInclusive( 1, 10 ) == 1 )
+	{
+		CATG_PlayAct( ai, "ACT_SPRINT_BACKWARD", rate )
+	}
+	else // most likely
+	{
+		CATG_PlayAct( ai, "ACT_SPRINT_FORWARD", rate )
+		thread CATG_ArcstarDummyChangeAngles( ai, player )
+	}
+	thread CATG_ClippingAIWorkaround( ai, player )
+
+	wait 4
+	if ( !IsValid( ai ) )
+		return
+
+	// Smoke for 2 seconds, then the dummy is removed.
+	int attachID = ai.LookupAttachment( "CHESTFOCUS" )
+	int fxIndex = GetParticleSystemIndex( CATG_ARCSTAR_TRAIL_FX )
+	for ( int i = 0; i < 2; i++ )
+	{
+		entity trail = StartParticleEffectOnEntityWithPos_ReturnEntity( ai, fxIndex, FX_PATTACH_ABSORIGIN_FOLLOW, attachID, <0, 0, 0>, VectorToAngles( <0, 0, -1> ) )
+		fx.append( trail )
+		CAT_TrackEnt( player, trail )
+	}
+	wait 2
+}
+
+void function CATG_ArcstarDummyChangeAngles( entity ai, entity player )
+{
+	if ( !CATG_EndSignalsDummy( ai, player ) )
+		return
+
+	while ( IsValid( ai ) )
+	{
+		if ( RandomFloatRange( 0, 10 ) <= 0.5 ) // 5% per frame
+			CATG_RandomTurn( ai )
+		WaitFrame()
+	}
+}
+
+// --------------------------------------------------------------------------
+// LIFT (8)
+//
+// The original lifted the player by setting the server-wide sv_gravity every
+// frame, which changed gravity for everyone on the server. Here the player's
+// own gravity scale (kv.gravity, as ReMap jump pads use it) is lowered while
+// riding and the velocity is driven every frame as before. The trigger
+// cylinders are replaced by a per-player hull-vs-cylinder test so other
+// players' lifts at the same spot don't affect each other.
+
+void function CATG_Drill_Lift( entity player )
+{
+	CATG_EndSignalsPlayer( player )
+	CATG_TeleportToGround( player )
+
+	// Same as the space elevator: lets every weapon ADS/fire normally in the air.
+	GiveExtraWeaponMod( player, "elevator_shooter" )
+
+	OnThreadEnd(
+		function() : ( player )
+		{
+			if ( !IsValid( player ) )
+				return
+			TakeExtraWeaponMod( player, "elevator_shooter" )
+			player.kv.gravity = 1.0
+		}
+	)
+
+	CAT_WaitForStart( player )
+
+	vector liftPos = player.GetOrigin()
+	array<vector> spawnLocations = NavMesh_GetNeighborPositions( liftPos, HULL_HUMAN, 40 )
+	if ( spawnLocations.len() == 0 )
+		spawnLocations = CATG_RandomRing( liftPos, 40, 100.0 * CAT_SpawnDistance( player ), 300.0 * CAT_SpawnDistance( player ) )
+
+	CATG_CreateLiftVisuals( player, liftPos )
+	thread CATG_LiftThink( player, liftPos )
+
+	vector spawnAngles = CAT_GetGroundAngles( player ) * -1
+
+	while ( CAT_IsRunning( player ) )
+	{
+		if ( CAT_GetDummies( player ).len() < 6 )
+		{
+			vector pos = CATG_DropToGround( spawnLocations.getrandom() )
+			entity dummy = CAT_SpawnDummy( player, pos, spawnAngles )
+
+			thread CATG_LiftDummyMovementThink( dummy, player )
+			thread CATG_ClippingAIWorkaround( dummy, player )
+		}
+		WaitFrame()
+	}
+}
+
+void function CATG_CreateLiftVisuals( entity player, vector pos )
+{
+	entity circle = CreateEntity( "prop_script" )
+	circle.SetValueForModelKey( CATG_LIFT_CIRCLE_MODEL )
+	circle.kv.fadedist = 30000
+	circle.kv.renderamt = 0
+	circle.kv.rendercolor = "240, 19, 19"
+	circle.kv.modelscale = 0.27
+	circle.kv.solid = 0
+	circle.SetOrigin( pos + <0.0, 0.0, -25> )
+	circle.SetAngles( <0, 0, 0> )
+	circle.NotSolid()
+	DispatchSpawn( circle )
+	CAT_TrackEnt( player, circle )
+}
+
+// Approximates trigger_cylinder touching with the standing player hull.
+bool function CATG_InCylinder( entity player, vector base, float below, float above )
+{
+	vector o = player.GetOrigin()
+	if ( Distance2D( o, base ) > CATG_LIFT_RADIUS + CATG_PLAYER_HULL_RADIUS )
+		return false
+	return ( o.z + CATG_PLAYER_HULL_HEIGHT ) >= ( base.z - below ) && o.z <= ( base.z + above )
+}
+
+vector function CATG_LiftVelocity( entity player, vector pos, float upSpeed )
+{
+	vector newVelocity
+	if ( player.IsInputCommandHeld( IN_MOVERIGHT ) )
+		newVelocity = AnglesToRight( player.GetAngles() ) * CATG_LIFT_HORIZ_SPEED
+	else if ( player.IsInputCommandHeld( IN_MOVELEFT ) )
+		newVelocity = AnglesToRight( player.GetAngles() ) * -CATG_LIFT_HORIZ_SPEED
+	else if ( player.IsInputCommandHeld( IN_FORWARD ) )
+		newVelocity = AnglesToForward( player.GetAngles() ) * CATG_LIFT_HORIZ_SPEED
+	else if ( player.IsInputCommandHeld( IN_BACK ) )
+		newVelocity = AnglesToForward( player.GetAngles() ) * -CATG_LIFT_HORIZ_SPEED
+	else
+	{
+		// pull back toward the lift's center
+		vector dir = Normalize( pos - player.GetOrigin() )
+		float dist = Distance( player.GetOrigin(), pos )
+		newVelocity = dir * GraphCapped( dist, 50, CATG_LIFT_PULL_RANGE, 0, CATG_LIFT_PULL_STRENGTH_MAX )
+	}
+	newVelocity.z = upSpeed
+	return newVelocity
+}
+
+// LiftPlayerUp + BottomTriggerLeave + ForceToBeInLiftForChallenge in one thread.
+void function CATG_LiftThink( entity player, vector pos )
+{
+	CATG_EndSignalsPlayer( player )
+	player.EndSignal( "OnDeath" )
+
+	OnThreadEnd(
+		function() : ( player )
+		{
+			if ( IsValid( player ) )
+				player.kv.gravity = 1.0
+		}
+	)
+
+	vector topPos = pos + <0, 0, CATG_LIFT_HEIGHT>
+	bool touchingTop = false
+	bool wasInBottom = false
+	float cycleEnd = Time() + CATG_LIFT_CYCLE
+	player.SetVelocity( <0, 0, 0> )
+
+	while ( CAT_IsRunning( player ) )
+	{
+		// Every few seconds: clear the targets and put the player back at the bottom.
+		if ( Time() >= cycleEnd )
+		{
+			// clone: destroying ends the dummy's thread, which untracks it
+			array<entity> toRemove = clone CAT_GetDummies( player )
+			foreach ( entity dummy in toRemove )
+			{
+				if ( IsValid( dummy ) )
+					dummy.Destroy()
+			}
+			WaitFrame()
+
+			touchingTop = false
+			wasInBottom = false
+			player.kv.gravity = 1.0
+			player.SetVelocity( <0, 0, 0> )
+			player.SetOrigin( pos )
+			player.SetVelocity( <0, 0, 0> )
+			cycleEnd = Time() + CATG_LIFT_CYCLE
+			WaitFrame()
+			continue
+		}
+
+		bool inTop = CATG_InCylinder( player, topPos, 0.0, CATG_LIFT_TOP_HEIGHT )
+		bool inBottom = CATG_InCylinder( player, pos, CATG_LIFT_BELOW, CATG_LIFT_HEIGHT )
+
+		// BottomTriggerLeave: normal gravity and a small launch.
+		if ( wasInBottom && !inBottom )
+		{
+			player.kv.gravity = 1.0
+			vector velocity = player.GetVelocity()
+			velocity += ( AnglesToForward( player.GetAngles() ) * 400 ) + ( AnglesToUp( player.GetAngles() ) * 450 )
+			player.SetVelocity( velocity )
+		}
+		wasInBottom = inBottom
+
+		if ( inTop )
+		{
+			touchingTop = true
+			player.kv.gravity = CATG_LIFT_GRAVITY
+			player.SetVelocity( CATG_LiftVelocity( player, pos, CATG_LIFT_TOP_UP_SPEED ) )
+		}
+		else if ( inBottom && !touchingTop )
+		{
+			player.kv.gravity = CATG_LIFT_GRAVITY
+			player.SetVelocity( CATG_LiftVelocity( player, pos, CATG_LIFT_UP_SPEED ) )
+		}
+
+		WaitFrame()
+	}
+}
+
+void function CATG_LiftDummyMovementThink( entity ai, entity player )
+{
+	if ( !CATG_EndSignalsDummy( ai, player ) )
+		return
+
+	OnThreadEnd(
+		function() : ( ai, player )
+		{
+			CAT_UntrackDummy( player, ai )
+			if ( IsValid( ai ) )
+				ai.Destroy()
+		}
+	)
+
+	CATG_PlayAct( ai, "ACT_SPRINT_FORWARD", CAT_StrafeRate( player ) )
+	wait 0.5
+	while ( IsValid( ai ) )
+	{
+		if ( RandomIntRangeInclusive( 1, 10 ) == 1 ) // 10% per frame
+			CATG_RandomTurn( ai )
+		WaitFrame()
+	}
+}
+
+// --------------------------------------------------------------------------
+// RUNNING TARGETS (16)
+
+array<vector> function CATG_RunningSpawnLocations( entity player, vector center )
+{
+	float dist = CAT_SpawnDistance( player )
+	return NavMesh_RandomPositions( center, HULL_HUMAN, 40, 200.0 * dist, 300.0 * dist )
+}
+
+void function CATG_Drill_RunningTargets( entity player )
+{
+	CATG_EndSignalsPlayer( player )
+	CATG_TeleportToGround( player )
+	CAT_WaitForStart( player )
+
+	float dist = CAT_SpawnDistance( player )
+	array<vector> locations = CATG_RunningSpawnLocations( player, player.GetOrigin() )
+	bool haveNavmesh = locations.len() > 0
+	if ( !haveNavmesh )
+		printt( CAT_LOG, "running targets: no navmesh near", player.GetOrigin(), "- using ring positions" )
+
+	WaitFrame()
+	while ( CAT_IsRunning( player ) )
+	{
+		if ( CAT_GetDummies( player ).len() < 25 )
+		{
+			vector playerGround = CAT_OriginToGround( player.GetOrigin() + <0, 0, 32> )
+			array<vector> fresh = CATG_RunningSpawnLocations( player, playerGround )
+			if ( fresh.len() > 0 )
+			{
+				locations = fresh
+				haveNavmesh = true
+			}
+			else if ( !haveNavmesh )
+			{
+				locations = CATG_RandomRing( player.GetOrigin(), 40, 200.0 * dist, 300.0 * dist )
+			}
+
+			vector spawnPos = locations.getrandom()
+			// Run across the player's view: perpendicular to the line to the player.
+			float side = CoinFlip() ? 90.0 : -90.0
+			vector angles = <0, VectorToAngles( player.GetOrigin() - spawnPos ).y + side, 0>
+
+			entity dummy = CAT_SpawnDummy( player, CATG_DropToGround( spawnPos ), angles )
+
+			thread CATG_RunningTargetsMovement( dummy, player )
+			thread CATG_ClippingAIWorkaround( dummy, player )
+			wait 0.2
+		}
+		WaitFrame()
+	}
+}
+
+void function CATG_RunningTargetsMovement( entity ai, entity player )
+{
+	if ( !CATG_EndSignalsDummy( ai, player ) )
+		return
+
+	OnThreadEnd(
+		function() : ( ai, player )
+		{
+			CAT_UntrackDummy( player, ai )
+			if ( IsValid( ai ) )
+				ai.Destroy()
+		}
+	)
+
+	float minDist = 100.0 * CAT_SpawnDistance( player )
+
+	WaitFrame()
+	CATG_PlayAct( ai, "ACT_SPRINT_FORWARD", CAT_StrafeRate( player ) )
+	wait 0.5
+
+	while ( IsValid( ai ) )
+	{
+		float distance = Distance( ai.GetOrigin(), player.GetOrigin() )
+
+		if ( distance >= 500 && RandomIntRangeInclusive( 1, 10 ) <= 3 ) // 30% per frame
+			CATG_RandomTurn( ai )
+
+		if ( distance <= minDist )
+		{
+			// too close: run away from the player
+			ai.SetAngles( CATG_YawTo( player.GetOrigin(), ai.GetOrigin() ) )
+			wait 0.5
+		}
+		else if ( distance >= CATG_MAX_DUMMY_DIST )
+		{
+			return
+		}
+
+		WaitFrame()
+	}
+}

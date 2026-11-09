@@ -1,0 +1,1512 @@
+// Cosmic Aim Trainer -- weapon selector (UI VM).
+//
+// Port of the R5Reloaded aim trainer weapon selector
+// (FRChallenges/mainmenu_settings_weaponselector.nut + panel_buymenu1..5.nut):
+// category tabs with weapon cards, PRIMARY / SECONDARY slot choice and a per
+// weapon attachments box (optic, barrel, stock, mag/bolt, hop-up). Every click
+// gives the weapon again with its attachments, like the original's
+// BuyWeaponWithAttachments2.
+//
+// Differences to the original:
+//   - The original sent attachment indices that the server mapped to mod names
+//     (CC_MenuGiveAimTrainerWeapon). Here the UI sends real loot refs:
+//       cosmic_aimtrainer weapon <weaponRef> <slot 0|1> <mod> <mod> ...
+//     and sv_cat_core.gnut keeps the ones that are loot refs.
+//   - What a weapon accepts comes from Flowstate's own data, not hardcoded S3
+//     lists: datatable/weapon_attachment_matrix (the table sh_survival_loot
+//     uses for attachment compatibility) limited to the attach points in the
+//     weapon's LootData.supportedAttachments. Corrupted, dormant and disabled
+//     attachments are skipped. Weapons whose base mods carry a (dormant)
+//     hop-up get no hop-up choices: outside "survival" the server precharges
+//     that hop-up (SURVIVAL_Loot_ResolveDormantHopups) and the server always
+//     adds the base mods, so it is already on the gun.
+//   - Tabs are script driven. S21's tab system (ui/_tabs.nut) only knows the
+//     TabsCommonClass panels that existed when InitTabs() ran inside
+//     InitMenus(), and it cannot be re-run, so this menu has no
+//     TabsCommonClass element (UpdateMenuTabs would throw on it). The four tab
+//     bodies are real AddPanel panels switched with ShowPanel / HidePanel.
+//
+// Registration: menus can only be added after InitMenus (AddMenu ->
+// InitButtonRCP -> GetMenu( "MainMenu" )). CAT_UI_WeaponSelectorInit() starts
+// a thread that waits for that; CAT_UI_OpenWeaponSelector() also registers on
+// first use, so nothing else has to call the init. When registration fails the
+// selector falls back to DevMenu pages with the same choices.
+
+global function CAT_UI_WeaponSelectorInit
+global function CAT_UI_OpenWeaponSelector
+
+const string CAT_WS_MENU_NAME = "CAT_WeaponSelectorMenu"
+const string CAT_WS_PANEL_PREFIX = "CAT_WS_BuyMenu"
+const asset CAT_WS_MENU_RES = $"resource/ui/menus/cosmic_aimtrainer/weaponselector.menu"
+const asset CAT_WS_MATRIX = $"datatable/weapon_attachment_matrix.rpak"
+const asset CAT_WS_EMPTY_ICON = $"rui/pilot_loadout/mods/empty_sight"
+
+const int CAT_WS_TABS = 4
+const int CAT_WS_CARDS = 12
+const int CAT_WS_CATEGORIES = 5
+const int CAT_WS_ITEMS = 15
+const int CAT_WS_SUMMARY_LINES = 5
+
+// attachment categories (box header order, same as the original)
+const int CAT_WS_OPTIC = 0
+const int CAT_WS_BARREL = 1
+const int CAT_WS_STOCK = 2
+const int CAT_WS_MAG = 3
+const int CAT_WS_HOPUP = 4
+
+struct
+{
+	bool inited = false
+	bool registerStarted = false
+	bool registerDone = false
+
+	var menu = null
+	array<var> panels
+
+	array<string> tabTitles
+	array< array<string> > tabRefs
+	table<string, string> fallbackNames
+
+	int activeTab = 0
+	int slot = 0                        // 0 = primary, 1 = secondary
+	array<string> equipped              // what this selector gave per slot ([0], [1]; set in CAT_WS_InitData)
+	var openedOver = null               // menu that was active when we opened
+
+	// attachments box
+	string boxRef = ""
+	int boxSlot = 0
+	int boxCat = CAT_WS_OPTIC
+	array<int> boxCats
+	array<string> boxItems              // "" = none
+
+	table<string, string> selection     // weaponRef|cat -> attachment ref ("" = none)
+	table<string, array<string> > optionCache
+
+	// DevMenu fallback
+	bool fbActive = false
+	bool fbFromDevMenu = false
+	int fbDepth = 0
+	int fbTab = 0
+	string fbRef = ""
+	int fbCat = 0
+} file
+
+// --------------------------------------------------------------------------
+// Data
+
+void function CAT_WS_InitData()
+{
+	file.tabTitles = [ "Pistols & Shotguns", "SMGs", "Assault Rifles & LMGs", "Marksman & Snipers" ]
+
+	// Original order first, Flowstate additions after. The original's 5th tab
+	// (Hitscan: mp_weapon_lightninggun) is gone: that weapon is not loot in
+	// Flowstate, so the server would refuse it.
+	array<string> pistols = [ "mp_weapon_semipistol", "mp_weapon_shotgun_pistol", "mp_weapon_wingman", "mp_weapon_autopistol",
+		"mp_weapon_shotgun", "mp_weapon_mastiff", "mp_weapon_energy_shotgun", "mp_weapon_autopistol_fusion" ]
+	array<string> smgs = [ "mp_weapon_volt_smg", "mp_weapon_r97", "mp_weapon_pdw", "mp_weapon_alternator_smg", "mp_weapon_car" ]
+	array<string> rifles = [ "mp_weapon_energy_ar", "mp_weapon_lstar", "mp_weapon_esaw", "mp_weapon_hemlok", "mp_weapon_vinson",
+		"mp_weapon_lmg", "mp_weapon_rspn101", "mp_weapon_nemesis", "mp_weapon_dragon_lmg", "mp_weapon_auto_hemlok" ]
+	array<string> snipers = [ "mp_weapon_g2", "mp_weapon_dmr", "mp_weapon_doubletake", "mp_weapon_defender", "mp_weapon_sniper",
+		"mp_weapon_sentinel", "mp_weapon_3030", "mp_weapon_bow" ]
+	file.tabRefs.clear()
+	file.tabRefs.append( pistols )
+	file.tabRefs.append( smgs )
+	file.tabRefs.append( rifles )
+	file.tabRefs.append( snipers )
+	file.equipped = [ "", "" ]
+
+	// Shown when the loot table has no localized name (original GetWeaponNameForUI).
+	file.fallbackNames[ "mp_weapon_semipistol" ] <- "P2020"
+	file.fallbackNames[ "mp_weapon_shotgun_pistol" ] <- "Mozambique"
+	file.fallbackNames[ "mp_weapon_wingman" ] <- "Wingman"
+	file.fallbackNames[ "mp_weapon_autopistol" ] <- "RE-45"
+	file.fallbackNames[ "mp_weapon_autopistol_fusion" ] <- "RE-45 Fusion"
+	file.fallbackNames[ "mp_weapon_shotgun" ] <- "EVA-8"
+	file.fallbackNames[ "mp_weapon_mastiff" ] <- "Mastiff"
+	file.fallbackNames[ "mp_weapon_energy_shotgun" ] <- "Peacekeeper"
+	file.fallbackNames[ "mp_weapon_volt_smg" ] <- "Volt"
+	file.fallbackNames[ "mp_weapon_r97" ] <- "R-99"
+	file.fallbackNames[ "mp_weapon_pdw" ] <- "Prowler"
+	file.fallbackNames[ "mp_weapon_alternator_smg" ] <- "Alternator"
+	file.fallbackNames[ "mp_weapon_car" ] <- "C.A.R."
+	file.fallbackNames[ "mp_weapon_energy_ar" ] <- "Havoc"
+	file.fallbackNames[ "mp_weapon_lstar" ] <- "L-STAR"
+	file.fallbackNames[ "mp_weapon_esaw" ] <- "Devotion"
+	file.fallbackNames[ "mp_weapon_hemlok" ] <- "Hemlok"
+	file.fallbackNames[ "mp_weapon_auto_hemlok" ] <- "Hemlok (Auto)"
+	file.fallbackNames[ "mp_weapon_vinson" ] <- "Flatline"
+	file.fallbackNames[ "mp_weapon_lmg" ] <- "Spitfire"
+	file.fallbackNames[ "mp_weapon_rspn101" ] <- "R-301"
+	file.fallbackNames[ "mp_weapon_nemesis" ] <- "Nemesis"
+	file.fallbackNames[ "mp_weapon_dragon_lmg" ] <- "Rampage"
+	file.fallbackNames[ "mp_weapon_g2" ] <- "G7 Scout"
+	file.fallbackNames[ "mp_weapon_dmr" ] <- "Longbow"
+	file.fallbackNames[ "mp_weapon_doubletake" ] <- "Triple Take"
+	file.fallbackNames[ "mp_weapon_defender" ] <- "Charge Rifle"
+	file.fallbackNames[ "mp_weapon_sniper" ] <- "Kraber"
+	file.fallbackNames[ "mp_weapon_sentinel" ] <- "Sentinel"
+	file.fallbackNames[ "mp_weapon_3030" ] <- "30-30 Repeater"
+	file.fallbackNames[ "mp_weapon_bow" ] <- "Bocek"
+}
+
+// The UI VM gets loot data on level init (_menus.nut); before that nothing is valid.
+bool function CAT_WS_LootReady()
+{
+	bool ready = false
+	try
+	{
+		ready = SURVIVAL_Loot_IsRefValid( "mp_weapon_wingman" )
+	}
+	catch ( errReady )
+	{
+		ready = false
+	}
+	return ready
+}
+
+bool function CAT_WS_IsWeaponOffered( string ref )
+{
+	if ( !CAT_WS_LootReady() )
+		return true // can't check here; the server validates anyway
+	try
+	{
+		if ( !SURVIVAL_Loot_IsRefValid( ref ) || SURVIVAL_Loot_IsRefDisabled( ref ) )
+			return false
+		return SURVIVAL_Loot_GetLootDataByRef( ref ).lootType == eLootType.MAINWEAPON
+	}
+	catch ( errOffered )
+	{
+	}
+	return false
+}
+
+array<string> function CAT_WS_TabWeapons( int tab )
+{
+	array<string> result
+	if ( tab < 0 || tab >= file.tabRefs.len() )
+		return result
+	foreach ( string ref in file.tabRefs[ tab ] )
+	{
+		if ( CAT_WS_IsWeaponOffered( ref ) && result.len() < CAT_WS_CARDS )
+			result.append( ref )
+	}
+	return result
+}
+
+string function CAT_WS_Localized( string token )
+{
+	if ( token == "" )
+		return ""
+	string text = ""
+	try
+	{
+		text = Localize( token )
+	}
+	catch ( errLoc )
+	{
+		text = ""
+	}
+	if ( text.find( "#" ) == 0 )
+		return ""
+	return text
+}
+
+string function CAT_WS_WeaponName( string ref )
+{
+	if ( ref == "" )
+		return "-"
+	try
+	{
+		if ( SURVIVAL_Loot_IsRefValid( ref ) )
+		{
+			string name = CAT_WS_Localized( SURVIVAL_Loot_GetLootDataByRef( ref ).pickupString )
+			if ( name != "" )
+				return name
+		}
+	}
+	catch ( errName )
+	{
+	}
+	if ( ref in file.fallbackNames )
+		return file.fallbackNames[ ref ]
+	return ref
+}
+
+string function CAT_WS_AttachmentName( string ref )
+{
+	if ( ref == "" )
+		return "None"
+	try
+	{
+		if ( SURVIVAL_Loot_IsRefValid( ref ) )
+		{
+			string name = CAT_WS_Localized( SURVIVAL_Loot_GetLootDataByRef( ref ).pickupString )
+			if ( name != "" )
+				return name
+		}
+	}
+	catch ( errAttName )
+	{
+	}
+	return ref
+}
+
+asset function CAT_WS_LootIcon( string ref )
+{
+	try
+	{
+		if ( ref != "" && SURVIVAL_Loot_IsRefValid( ref ) )
+			return SURVIVAL_Loot_GetLootDataByRef( ref ).hudIcon
+	}
+	catch ( errIcon )
+	{
+	}
+	return $""
+}
+
+int function CAT_WS_LootTier( string ref )
+{
+	try
+	{
+		if ( ref != "" && SURVIVAL_Loot_IsRefValid( ref ) )
+			return SURVIVAL_Loot_GetLootDataByRef( ref ).tier
+	}
+	catch ( errTier )
+	{
+	}
+	return 0
+}
+
+string function CAT_WS_WeaponAmmo( string ref )
+{
+	try
+	{
+		if ( SURVIVAL_Loot_IsRefValid( ref ) )
+			return SURVIVAL_Loot_GetLootDataByRef( ref ).ammoType
+	}
+	catch ( errAmmo )
+	{
+	}
+	return ""
+}
+
+string function CAT_WS_AmmoLabel( string ammoType )
+{
+	switch ( ammoType )
+	{
+		case "bullet": return "Light"
+		case "highcal": return "Heavy"
+		case "special": return "Energy"
+		case "shotgun": return "Shotgun"
+		case "sniper": return "Sniper"
+		case "arrows": return "Arrows"
+	}
+	return ammoType
+}
+
+string function CAT_WS_CategoryLabel( string weaponRef, int cat )
+{
+	switch ( cat )
+	{
+		case CAT_WS_OPTIC: return "OPTIC"
+		case CAT_WS_BARREL: return "BARREL"
+		case CAT_WS_STOCK: return "STOCK"
+		case CAT_WS_MAG: return CAT_WS_WeaponAmmo( weaponRef ) == "shotgun" ? "BOLT" : "MAG"
+		case CAT_WS_HOPUP: return "HOP-UP"
+	}
+	return ""
+}
+
+string function CAT_WS_SlotLabel( int slot )
+{
+	return slot == 1 ? "SECONDARY" : "PRIMARY"
+}
+
+// --------------------------------------------------------------------------
+// Attachments
+
+int function CAT_WS_CategoryForPoint( string point )
+{
+	if ( point == "sight" )
+		return CAT_WS_OPTIC
+	if ( point == "barrel" )
+		return CAT_WS_BARREL
+	if ( point == "grip" || point == "stock" )
+		return CAT_WS_STOCK
+	if ( point == "mag" )
+		return CAT_WS_MAG
+	if ( point.find( "hopup" ) == 0 )
+		return CAT_WS_HOPUP
+	return -1
+}
+
+bool function CAT_WS_WeaponHasPointFor( LootData weapon, int cat )
+{
+	foreach ( string point in weapon.supportedAttachments )
+	{
+		if ( CAT_WS_CategoryForPoint( point ) == cat )
+			return true
+	}
+	return false
+}
+
+// Hop-ups the weapon already carries through its loot base mods.
+array<string> function CAT_WS_BuiltInHopups( LootData weapon )
+{
+	array<string> result
+	foreach ( string mod in weapon.baseMods )
+	{
+		if ( mod.find( "dormant_hopup_" ) == 0 )
+			result.append( mod.slice( 8 ) ) // strip "dormant_"
+		else if ( mod.find( "hopup_" ) == 0 )
+			result.append( mod )
+	}
+	return result
+}
+
+bool function CAT_WS_IsOfferableAttachment( string att, LootData weapon )
+{
+	if ( att == "" || att.find( "dormant_" ) == 0 )
+		return false
+	if ( !SURVIVAL_Loot_IsRefValid( att ) || SURVIVAL_Loot_IsRefDisabled( att ) )
+		return false
+	LootData data = SURVIVAL_Loot_GetLootDataByRef( att )
+	if ( data.lootType != eLootType.ATTACHMENT )
+		return false
+	if ( data.lootTags.contains( "corrupted_attachment" ) )
+		return false
+	if ( weapon.baseMods.contains( att ) )
+		return false
+	return true
+}
+
+// Rows of weapon_attachment_matrix marked true for this weapon, in table order.
+bool function CAT_WS_ReadMatrix( string weaponRef, array<string> outRefs, array<string> outPoints )
+{
+	try
+	{
+		var dt = GetDataTable( CAT_WS_MATRIX )
+		int col = GetDataTableColumnByName( dt, weaponRef )
+		int nameCol = GetDataTableColumnByName( dt, "attachmentName" )
+		int pointCol = GetDataTableColumnByName( dt, "attachmentPoint" )
+		if ( col < 0 || nameCol < 0 || pointCol < 0 )
+			return false
+
+		int rows = GetDataTableRowCount( dt )
+		for ( int row = 0; row < rows; row++ )
+		{
+			if ( !GetDataTableBool( dt, row, col ) )
+				continue
+			array<string> points = split( GetDataTableString( dt, row, pointCol ), WHITESPACE_CHARACTERS )
+			outRefs.append( GetDataTableString( dt, row, nameCol ) )
+			outPoints.append( points.len() > 0 ? points[0] : "" )
+		}
+		return true
+	}
+	catch ( errMatrix )
+	{
+		printt( CAT_LOG, "weapon selector: attachment matrix unavailable for", weaponRef, errMatrix )
+	}
+	return false
+}
+
+// Matrix unavailable: the original selector's rules (S3 aim trainer mapping),
+// checked against the loot table.
+bool function CAT_WS_HeuristicFits( string att, LootData attData, LootData weapon, int cat )
+{
+	bool sniper = weapon.lootTags.contains( "sniper" )
+	bool marksman = weapon.lootTags.contains( "marksman" )
+	bool closeRange = weapon.lootTags.contains( "pistol" ) || weapon.lootTags.contains( "smg" ) || weapon.lootTags.contains( "shotgun" )
+
+	switch ( cat )
+	{
+		case CAT_WS_OPTIC:
+			if ( att == "optic_cq_threat" )
+				return false
+			if ( att.find( "optic_sniper" ) == 0 )
+				return sniper
+			if ( att.find( "optic_ranged" ) == 0 )
+				return !closeRange
+			return att.find( "optic_cq" ) == 0
+		case CAT_WS_BARREL:
+			if ( att.find( "laser_sight" ) == 0 )
+				return weapon.lootTags.contains( "pistol" ) || weapon.lootTags.contains( "smg" )
+			if ( att.find( "barrel_stabilizer" ) == 0 )
+				return !weapon.lootTags.contains( "pistol" ) && !weapon.lootTags.contains( "smg" )
+			return false
+		case CAT_WS_STOCK:
+			if ( att.find( "stock_sniper" ) == 0 )
+				return sniper || marksman
+			if ( att.find( "stock_tactical" ) == 0 )
+				return !sniper && !marksman
+			return false
+		case CAT_WS_MAG:
+			return attData.ammoType != "" && attData.ammoType == weapon.ammoType
+	}
+	return false // no hop-ups without the matrix
+}
+
+array<string> function CAT_WS_GetOptions( string weaponRef, int cat )
+{
+	string key = weaponRef + "|" + cat.tostring()
+	if ( key in file.optionCache )
+		return file.optionCache[ key ]
+
+	array<string> result
+	try
+	{
+		if ( CAT_WS_LootReady() && SURVIVAL_Loot_IsRefValid( weaponRef ) )
+		{
+			LootData weapon = SURVIVAL_Loot_GetLootDataByRef( weaponRef )
+			bool usable = CAT_WS_WeaponHasPointFor( weapon, cat )
+			if ( cat == CAT_WS_HOPUP && CAT_WS_BuiltInHopups( weapon ).len() > 0 )
+				usable = false
+
+			if ( usable )
+			{
+				array<string> refs
+				array<string> points
+				if ( CAT_WS_ReadMatrix( weaponRef, refs, points ) )
+				{
+					for ( int i = 0; i < refs.len(); i++ )
+					{
+						if ( CAT_WS_CategoryForPoint( points[i] ) != cat )
+							continue
+						if ( CAT_WS_IsOfferableAttachment( refs[i], weapon ) && !result.contains( refs[i] ) )
+							result.append( refs[i] )
+					}
+				}
+				else
+				{
+					foreach ( LootData att in SURVIVAL_Loot_GetByType( eLootType.ATTACHMENT ) )
+					{
+						if ( att.attachmentType < 0 || CAT_WS_CategoryForPoint( CAT_WS_PointForType( att.attachmentType ) ) != cat )
+							continue
+						if ( !CAT_WS_IsOfferableAttachment( att.ref, weapon ) )
+							continue
+						if ( CAT_WS_HeuristicFits( att.ref, att, weapon, cat ) && !result.contains( att.ref ) )
+							result.append( att.ref )
+					}
+				}
+			}
+		}
+	}
+	catch ( errOptions )
+	{
+		printt( CAT_LOG, "weapon selector: attachment list failed", weaponRef, cat, errOptions )
+	}
+
+	while ( result.len() > CAT_WS_ITEMS - 1 ) // slot 0 is "none"
+		result.remove( result.len() - 1 )
+
+	if ( CAT_WS_LootReady() )
+		file.optionCache[ key ] <- result
+	return result
+}
+
+string function CAT_WS_PointForType( int attachmentType )
+{
+	switch ( attachmentType )
+	{
+		case eWeaponAttachmentType.SCOPE: return "sight"
+		case eWeaponAttachmentType.BARREL: return "barrel"
+		case eWeaponAttachmentType.STOCK: return "grip"
+		case eWeaponAttachmentType.MAG: return "mag"
+		case eWeaponAttachmentType.HOPUP: return "hopup"
+	}
+	return ""
+}
+
+array<int> function CAT_WS_WeaponCategories( string weaponRef )
+{
+	array<int> cats
+	for ( int cat = 0; cat < CAT_WS_CATEGORIES; cat++ )
+	{
+		if ( CAT_WS_GetOptions( weaponRef, cat ).len() > 0 )
+			cats.append( cat )
+	}
+	return cats
+}
+
+string function CAT_WS_SelectionKey( string weaponRef, int cat )
+{
+	return weaponRef + "|" + cat.tostring()
+}
+
+string function CAT_WS_GetSelection( string weaponRef, int cat )
+{
+	string key = CAT_WS_SelectionKey( weaponRef, cat )
+	if ( !( key in file.selection ) )
+		return ""
+	string sel = file.selection[ key ]
+	if ( sel != "" && !CAT_WS_GetOptions( weaponRef, cat ).contains( sel ) )
+		return ""
+	return sel
+}
+
+void function CAT_WS_SetSelection( string weaponRef, int cat, string att )
+{
+	string key = CAT_WS_SelectionKey( weaponRef, cat )
+	if ( key in file.selection )
+		file.selection[ key ] = att
+	else
+		file.selection[ key ] <- att
+}
+
+array<string> function CAT_WS_SelectedMods( string weaponRef )
+{
+	array<string> mods
+	for ( int cat = 0; cat < CAT_WS_CATEGORIES; cat++ )
+	{
+		string sel = CAT_WS_GetSelection( weaponRef, cat )
+		if ( sel != "" )
+			mods.append( sel )
+	}
+	return mods
+}
+
+string function CAT_WS_BuiltInHopupText( string weaponRef )
+{
+	try
+	{
+		if ( !SURVIVAL_Loot_IsRefValid( weaponRef ) )
+			return ""
+		LootData weapon = SURVIVAL_Loot_GetLootDataByRef( weaponRef )
+		array<string> hopups = CAT_WS_BuiltInHopups( weapon )
+		if ( hopups.len() == 0 || !CAT_WS_WeaponHasPointFor( weapon, CAT_WS_HOPUP ) )
+			return ""
+		string name = CAT_WS_AttachmentName( hopups[0] )
+		if ( name == hopups[0] && !SURVIVAL_Loot_IsRefValid( hopups[0] ) )
+			return ""
+		return "Hop-up: " + name
+	}
+	catch ( errBuiltIn )
+	{
+	}
+	return ""
+}
+
+// --------------------------------------------------------------------------
+// Giving
+
+void function CAT_WS_Give( string weaponRef, int slot )
+{
+	if ( weaponRef == "" )
+		return
+	array<string> mods = CAT_WS_SelectedMods( weaponRef )
+	string cmd = CAT_CLIENT_COMMAND + " weapon " + weaponRef + " " + ( slot == 1 ? "1" : "0" )
+	foreach ( string mod in mods )
+		cmd += " " + mod
+	if ( IsConnected() )
+		ClientCommand( cmd )
+
+	file.equipped[ slot == 1 ? 1 : 0 ] = weaponRef
+
+	string status = CAT_WS_WeaponName( weaponRef ) + " -> " + CAT_WS_SlotLabel( slot )
+	if ( mods.len() == 1 )
+		status += "  (1 attachment)"
+	else if ( mods.len() > 1 )
+		status += "  (" + mods.len().tostring() + " attachments)"
+	CAT_WS_SetStatus( status )
+}
+
+// --------------------------------------------------------------------------
+// Init / registration
+
+void function CAT_UI_WeaponSelectorInit()
+{
+	if ( file.inited )
+		return
+	file.inited = true
+	CAT_WS_InitData()
+	AddUICallback_LevelShutdown( CAT_WS_OnLevelShutdown )
+	thread CAT_WS_Register_Thread()
+}
+
+void function CAT_WS_OnLevelShutdown()
+{
+	file.equipped[0] = ""
+	file.equipped[1] = ""
+	file.boxRef = ""
+	file.optionCache.clear()
+	file.fbActive = false
+	file.openedOver = null
+}
+
+bool function CAT_WS_InitMenusDone()
+{
+	return ( "MainMenu" in uiGlobal.menus ) && ( "DevMenu" in uiGlobal.menus )
+}
+
+// Same wait as ui_cat_menus.gnut: DevMenu is the last AddMenu in InitMenus,
+// which is synchronous, so one frame after it exists all of InitMenus' loops
+// (and InitTabs) are done.
+void function CAT_WS_Register_Thread()
+{
+	int frames = 0
+	while ( !CAT_WS_InitMenusDone() )
+	{
+		WaitFrame()
+		if ( ++frames > 3000 )
+		{
+			printt( CAT_LOG, "weapon selector: InitMenus never finished, DevMenu fallback only" )
+			return
+		}
+	}
+	WaitFrame()
+	CAT_WS_TryRegister()
+}
+
+void function CAT_WS_TryRegister()
+{
+	if ( file.registerStarted )
+		return
+	file.registerStarted = true
+	file.menu = CAT_WS_CreateMenu()
+	file.registerDone = true
+	printt( CAT_LOG, "weapon selector menu:", file.menu != null ? "ready" : "unavailable, using DevMenu pages" )
+}
+
+// AddMenu + AddPanel + the per-menu / per-panel steps of InitMenus()
+// (ui/_menus.nut): menu init, TabsCommonClass -> hasTabs,
+// EnableKeyBindingIcons, panel init, TabsPanelClass -> hasTabs, DefaultFocus.
+// InitTabs() is not replayed (see header); InitFooterOptions has nothing to do
+// for a menu without footer elements.
+var function CAT_WS_CreateMenu()
+{
+	if ( CAT_WS_MENU_NAME in uiGlobal.menus )
+	{
+		printt( CAT_LOG, "weapon selector: menu name already registered" )
+		return null
+	}
+
+	var menu = null
+	try
+	{
+		menu = AddMenu( CAT_WS_MENU_NAME, CAT_WS_MENU_RES, null, CAT_WS_MENU_NAME )
+	}
+	catch ( errAdd )
+	{
+		printt( CAT_LOG, "weapon selector: AddMenu failed", errAdd )
+		CAT_WS_Unregister()
+		return null
+	}
+	if ( menu == null )
+	{
+		CAT_WS_Unregister()
+		return null
+	}
+
+	array<string> required = [ "ScreenBlur", "BackButton0", "SlotButton0", "SlotButton1", "TabButton0", "TabButton3",
+		"CatButton0", "CatButton4", "ItemButton0", "ItemButton14", "ItemIcon14", "BoxTitle", "BoxImage", "BoxSummary4",
+		"Status", "BuyMenu0", "BuyMenu3" ]
+	if ( !CAT_WS_HasChildren( menu, required ) )
+	{
+		printt( CAT_LOG, "weapon selector: menu file incomplete or not found" )
+		CAT_WS_Unregister()
+		return null
+	}
+
+	array<var> panels
+	try
+	{
+		for ( int i = 0; i < CAT_WS_TABS; i++ )
+			panels.append( AddPanel( menu, CAT_WS_PANEL_PREFIX + i, CAT_WS_InitTabPanel ) )
+	}
+	catch ( errPanel )
+	{
+		printt( CAT_LOG, "weapon selector: AddPanel failed", errPanel )
+		CAT_WS_Unregister()
+		return null
+	}
+
+	array<string> panelRequired = [ "CardButton0", "CardButton11", "CardImg11", "CardName11", "CardTag11", "CardSel11", "CardFrame11" ]
+	foreach ( var panel in panels )
+	{
+		if ( !CAT_WS_HasChildren( panel, panelRequired ) )
+		{
+			printt( CAT_LOG, "weapon selector: panel file incomplete or not found" )
+			CAT_WS_Unregister()
+			return null
+		}
+	}
+	file.panels = panels
+
+	try
+	{
+		// InitMenus loop 1 (menus)
+		CAT_WS_InitMenu( menu )
+		uiGlobal.menuData[ menu ].initFunc = CAT_WS_InitMenu
+		if ( GetElementsByClassname( menu, "TabsCommonClass" ).len() > 0 )
+			uiGlobal.menuData[ menu ].hasTabs = true
+		foreach ( var elem in GetElementsByClassname( menu, "EnableKeyBindingIcons" ) )
+			Hud_EnableKeyBindingIcons( elem )
+
+		// InitMenus loop 2 (panels); initFunc was stored by AddPanel
+		foreach ( var panel in panels )
+		{
+			CAT_WS_InitTabPanel( panel )
+			if ( GetPanelElementsByClassname( panel, "TabsPanelClass" ).len() > 0 )
+				uiGlobal.panelData[ panel ].hasTabs = true
+		}
+
+		// InitMenus loop 3 (DefaultFocus)
+		foreach ( var button in GetElementsByClassname( menu, "DefaultFocus" ) )
+		{
+			var parentElem = Hud_GetParent( button )
+			if ( parentElem != null && ( parentElem in uiGlobal.panelData ) )
+				uiGlobal.panelData[ parentElem ].defaultFocus = button
+		}
+	}
+	catch ( errInit )
+	{
+		printt( CAT_LOG, "weapon selector: init failed", errInit )
+		CAT_WS_Unregister()
+		return null
+	}
+
+	return menu
+}
+
+bool function CAT_WS_HasChildren( var parentElem, array<string> names )
+{
+	foreach ( string name in names )
+	{
+		bool has = false
+		try
+		{
+			has = Hud_HasChild( parentElem, name )
+		}
+		catch ( errChild )
+		{
+			has = false
+		}
+		if ( !has )
+		{
+			printt( CAT_LOG, "weapon selector: missing element", name )
+			return false
+		}
+	}
+	return true
+}
+
+void function CAT_WS_Unregister()
+{
+	file.panels.clear()
+	for ( int i = 0; i < CAT_WS_TABS; i++ )
+	{
+		string name = CAT_WS_PANEL_PREFIX + i
+		if ( !( name in uiGlobal.panels ) )
+			continue
+		var panel = uiGlobal.panels[ name ]
+		delete uiGlobal.panels[ name ]
+		if ( panel == null )
+			continue
+		uiGlobal.allPanels.removebyvalue( panel )
+		uiGlobal.activePanels.removebyvalue( panel )
+		if ( panel in uiGlobal.panelData )
+			delete uiGlobal.panelData[ panel ]
+	}
+
+	if ( !( CAT_WS_MENU_NAME in uiGlobal.menus ) )
+		return
+	var menu = uiGlobal.menus[ CAT_WS_MENU_NAME ]
+	delete uiGlobal.menus[ CAT_WS_MENU_NAME ]
+	if ( menu == null )
+		return
+	uiGlobal.allMenus.removebyvalue( menu )
+	if ( menu in uiGlobal.menuData )
+		delete uiGlobal.menuData[ menu ]
+}
+
+void function CAT_WS_InitMenu( var menu )
+{
+	AddMenuEventHandler( menu, eUIEvent.MENU_NAVIGATE_BACK, CAT_WS_OnNavigateBack )
+
+	for ( int i = 0; i < CAT_WS_TABS; i++ )
+	{
+		Hud_AddEventHandler( Hud_GetChild( menu, "TabButton" + i ), UIE_CLICK, CAT_WS_OnTabClick )
+		Hud_SetText( Hud_GetChild( menu, "TabText" + i ), i < file.tabTitles.len() ? file.tabTitles[i] : "" )
+	}
+
+	for ( int i = 0; i < CAT_WS_CATEGORIES; i++ )
+		Hud_AddEventHandler( Hud_GetChild( menu, "CatButton" + i ), UIE_CLICK, CAT_WS_OnCategoryClick )
+
+	for ( int i = 0; i < CAT_WS_ITEMS; i++ )
+	{
+		var button = Hud_GetChild( menu, "ItemButton" + i )
+		Hud_AddEventHandler( button, UIE_CLICK, CAT_WS_OnItemClick )
+		Hud_AddEventHandler( button, UIE_GET_FOCUS, CAT_WS_OnItemFocus )
+		Hud_AddEventHandler( button, UIE_LOSE_FOCUS, CAT_WS_OnItemLoseFocus )
+	}
+
+	Hud_AddEventHandler( Hud_GetChild( menu, "SlotButton0" ), UIE_CLICK, CAT_WS_OnSlotClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "SlotButton1" ), UIE_CLICK, CAT_WS_OnSlotClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "BackButton0" ), UIE_CLICK, CAT_WS_OnBackClick )
+}
+
+void function CAT_WS_InitTabPanel( var panel )
+{
+	AddPanelEventHandler( panel, eUIEvent.PANEL_SHOW, CAT_WS_OnTabPanelShow )
+	for ( int i = 0; i < CAT_WS_CARDS; i++ )
+	{
+		var button = Hud_GetChild( panel, "CardButton" + i )
+		Hud_AddEventHandler( button, UIE_CLICK, CAT_WS_OnCardClick )
+		Hud_AddEventHandler( button, UIE_CLICKRIGHT, CAT_WS_OnCardRightClick )
+	}
+}
+
+// --------------------------------------------------------------------------
+// Open / close
+
+void function CAT_UI_OpenWeaponSelector()
+{
+	CAT_UI_WeaponSelectorInit()
+	if ( !file.registerStarted && CAT_WS_InitMenusDone() )
+		CAT_WS_TryRegister()
+
+	EmitUISound( "UI_InGame_Inventory_Open" )
+
+	if ( file.menu != null )
+	{
+		try
+		{
+			CAT_WS_OpenCustom()
+			return
+		}
+		catch ( errOpen )
+		{
+			printt( CAT_LOG, "weapon selector: custom menu failed, using DevMenu pages", errOpen )
+			if ( GetActiveMenu() == file.menu )
+				CloseActiveMenu()
+		}
+	}
+	CAT_WS_FB_Open()
+}
+
+void function CAT_WS_OpenCustom()
+{
+	file.fbActive = false
+	var active = GetActiveMenu()
+	if ( active != file.menu )
+	{
+		file.openedOver = active
+		AdvanceMenu( file.menu )
+	}
+	CAT_WS_ActivateTab( file.activeTab )
+	CAT_WS_RefreshMenu()
+}
+
+bool function CAT_WS_IsOurMenuActive()
+{
+	var active = GetActiveMenu()
+	if ( active == null )
+		return false
+	if ( file.menu != null && active == file.menu )
+		return true
+	return file.fbActive && ( "DevMenu" in uiGlobal.menus ) && active == GetMenu( "DevMenu" )
+}
+
+// Back to the aim trainer main menu: CAT_UI_BackToMainMenu() (ui_cat_menus.gnut)
+// closes all menus and reopens the main menu (custom or DevMenu fallback)
+// without touching its state. If this selector set both slots, the main menu's
+// loadout label is updated too.
+void function CAT_WS_ReturnToMain()
+{
+	file.fbActive = false
+	file.openedOver = null
+	CAT_UI_BackToMainMenu()
+	if ( file.equipped[0] != "" && file.equipped[1] != "" )
+		CAT_UI_SetLoadout( file.equipped[0], file.equipped[1] )
+}
+
+void function CAT_WS_OnNavigateBack()
+{
+	CAT_WS_ReturnToMain()
+}
+
+void function CAT_WS_OnBackClick( var button )
+{
+	CAT_WS_ReturnToMain()
+}
+
+// --------------------------------------------------------------------------
+// Custom menu: tabs, cards, slot
+
+void function CAT_WS_ActivateTab( int tab )
+{
+	if ( tab < 0 || tab >= file.panels.len() )
+		tab = 0
+	file.activeTab = tab
+	for ( int i = 0; i < file.panels.len(); i++ )
+	{
+		if ( i != tab )
+			HidePanel( file.panels[i] )
+	}
+	if ( file.panels.len() > 0 )
+	{
+		ShowPanel( file.panels[ tab ] )
+		CAT_WS_RefreshTabPanel( file.panels[ tab ] )
+	}
+	CAT_WS_RefreshTabButtons()
+}
+
+void function CAT_WS_OnTabClick( var button )
+{
+	int tab = int( Hud_GetScriptID( button ) )
+	if ( tab == file.activeTab )
+		return
+	CAT_WS_ActivateTab( tab )
+}
+
+void function CAT_WS_OnTabPanelShow( var panel )
+{
+	CAT_WS_RefreshTabPanel( panel )
+}
+
+void function CAT_WS_RefreshTabButtons()
+{
+	if ( file.menu == null )
+		return
+	for ( int i = 0; i < CAT_WS_TABS; i++ )
+		Hud_SetVisible( Hud_GetChild( file.menu, "TabSel" + i ), i == file.activeTab )
+}
+
+void function CAT_WS_RefreshTabPanel( var panel )
+{
+	int tab = file.panels.find( panel )
+	if ( tab < 0 )
+		return
+	array<string> refs = CAT_WS_TabWeapons( tab )
+
+	for ( int i = 0; i < CAT_WS_CARDS; i++ )
+	{
+		bool used = i < refs.len()
+		var button = Hud_GetChild( panel, "CardButton" + i )
+		Hud_SetVisible( Hud_GetChild( panel, "CardFrame" + i ), used )
+		Hud_SetVisible( Hud_GetChild( panel, "CardName" + i ), used )
+		Hud_SetVisible( Hud_GetChild( panel, "CardTag" + i ), used )
+		Hud_SetVisible( button, used )
+		Hud_SetEnabled( button, used )
+
+		var img = Hud_GetChild( panel, "CardImg" + i )
+		var sel = Hud_GetChild( panel, "CardSel" + i )
+		if ( !used )
+		{
+			Hud_SetVisible( img, false )
+			Hud_SetVisible( sel, false )
+			continue
+		}
+
+		string ref = refs[i]
+		Hud_SetText( Hud_GetChild( panel, "CardName" + i ), CAT_WS_WeaponName( ref ) )
+
+		string tag = ""
+		if ( file.equipped[0] == ref && file.equipped[1] == ref )
+			tag = "PRIMARY + SECONDARY"
+		else if ( file.equipped[0] == ref )
+			tag = "PRIMARY"
+		else if ( file.equipped[1] == ref )
+			tag = "SECONDARY"
+		Hud_SetText( Hud_GetChild( panel, "CardTag" + i ), tag )
+		Hud_SetVisible( sel, ref == file.boxRef )
+
+		asset icon = CAT_WS_LootIcon( ref )
+		if ( icon != $"" )
+		{
+			RuiSetImage( Hud_GetRui( img ), "basicImage", icon )
+			Hud_SetVisible( img, true )
+		}
+		else
+		{
+			Hud_SetVisible( img, false )
+		}
+	}
+}
+
+string function CAT_WS_CardRef( var button )
+{
+	int tab = file.panels.find( Hud_GetParent( button ) )
+	if ( tab < 0 )
+		tab = file.activeTab
+	array<string> refs = CAT_WS_TabWeapons( tab )
+	int index = int( Hud_GetScriptID( button ) )
+	if ( index < 0 || index >= refs.len() )
+		return ""
+	return refs[ index ]
+}
+
+// Left click: give the weapon (with its remembered attachments) to the
+// selected slot and show its attachments.
+void function CAT_WS_OnCardClick( var button )
+{
+	string ref = CAT_WS_CardRef( button )
+	if ( ref == "" )
+		return
+	CAT_WS_Give( ref, file.slot )
+	CAT_WS_OpenBox( ref, file.slot )
+}
+
+// Right click (original: OpenAttachmentsBox): attachments only; the weapon is
+// given on the first attachment change.
+void function CAT_WS_OnCardRightClick( var button )
+{
+	string ref = CAT_WS_CardRef( button )
+	if ( ref == "" )
+		return
+	EmitUISound( "UI_Menu_Accept" )
+	CAT_WS_OpenBox( ref, file.slot )
+}
+
+void function CAT_WS_OnSlotClick( var button )
+{
+	int slot = int( Hud_GetScriptID( button ) ) == 1 ? 1 : 0
+	file.slot = slot
+	CAT_WS_RefreshSlotButtons()
+}
+
+void function CAT_WS_RefreshSlotButtons()
+{
+	if ( file.menu == null )
+		return
+	Hud_SetVisible( Hud_GetChild( file.menu, "SlotSel0" ), file.slot == 0 )
+	Hud_SetVisible( Hud_GetChild( file.menu, "SlotSel1" ), file.slot == 1 )
+}
+
+void function CAT_WS_SetStatus( string text )
+{
+	if ( file.menu == null || file.fbActive )
+		return
+	try
+	{
+		Hud_SetText( Hud_GetChild( file.menu, "Status" ), text )
+	}
+	catch ( errStatus )
+	{
+	}
+}
+
+void function CAT_WS_RefreshMenu()
+{
+	CAT_WS_RefreshTabButtons()
+	CAT_WS_RefreshSlotButtons()
+	Hud_SetText( Hud_GetChild( file.menu, "BackText0" ), "BACK" )
+	Hud_SetText( Hud_GetChild( file.menu, "SlotText0" ), "PRIMARY" )
+	Hud_SetText( Hud_GetChild( file.menu, "SlotText1" ), "SECONDARY" )
+	if ( file.boxRef != "" && !CAT_WS_IsWeaponOffered( file.boxRef ) )
+		file.boxRef = ""
+	CAT_WS_RefreshBox()
+}
+
+// --------------------------------------------------------------------------
+// Custom menu: attachments box
+
+void function CAT_WS_OpenBox( string ref, int slot )
+{
+	file.boxRef = ref
+	file.boxSlot = slot
+	array<int> cats = CAT_WS_WeaponCategories( ref )
+	if ( !cats.contains( file.boxCat ) )
+		file.boxCat = cats.len() > 0 ? cats[0] : CAT_WS_OPTIC
+	CAT_WS_RefreshBox()
+	if ( file.activeTab >= 0 && file.activeTab < file.panels.len() )
+		CAT_WS_RefreshTabPanel( file.panels[ file.activeTab ] )
+}
+
+void function CAT_WS_SetElemVisible( string name, bool visible )
+{
+	var elem = Hud_GetChild( file.menu, name )
+	Hud_SetVisible( elem, visible )
+}
+
+void function CAT_WS_SetButtonUsable( string name, bool usable )
+{
+	var elem = Hud_GetChild( file.menu, name )
+	Hud_SetVisible( elem, usable )
+	Hud_SetEnabled( elem, usable )
+}
+
+vector function CAT_WS_TierColor( int tier )
+{
+	switch ( tier )
+	{
+		case 1: return <0.85, 0.85, 0.85>
+		case 2: return <0.25, 0.55, 1.0>
+		case 3: return <0.7, 0.3, 1.0>
+		case 4: return <1.0, 0.8, 0.15>
+		case 5: return <1.0, 0.25, 0.25>
+	}
+	return <0.35, 0.35, 0.35>
+}
+
+void function CAT_WS_RefreshBox()
+{
+	if ( file.menu == null )
+		return
+	var menu = file.menu
+	string ref = file.boxRef
+
+	file.boxCats.clear()
+	file.boxItems.clear()
+	if ( ref != "" )
+	{
+		foreach ( int cat in CAT_WS_WeaponCategories( ref ) )
+			file.boxCats.append( cat )
+		if ( !file.boxCats.contains( file.boxCat ) && file.boxCats.len() > 0 )
+			file.boxCat = file.boxCats[0]
+		if ( file.boxCats.contains( file.boxCat ) )
+		{
+			file.boxItems.append( "" )
+			foreach ( string att in CAT_WS_GetOptions( ref, file.boxCat ) )
+				file.boxItems.append( att )
+		}
+	}
+
+	// header
+	if ( ref == "" )
+	{
+		Hud_SetText( Hud_GetChild( menu, "BoxTitle" ), "ATTACHMENTS" )
+		Hud_SetText( Hud_GetChild( menu, "BoxInfo0" ), "Pick a weapon on the left." )
+		Hud_SetText( Hud_GetChild( menu, "BoxInfo1" ), "" )
+		Hud_SetText( Hud_GetChild( menu, "BoxInfo2" ), "" )
+		CAT_WS_SetElemVisible( "BoxImage", false )
+	}
+	else
+	{
+		Hud_SetText( Hud_GetChild( menu, "BoxTitle" ), CAT_WS_SlotLabel( file.boxSlot ) + "  -  " + CAT_WS_WeaponName( ref ) )
+		string ammo = CAT_WS_AmmoLabel( CAT_WS_WeaponAmmo( ref ) )
+		Hud_SetText( Hud_GetChild( menu, "BoxInfo0" ), ammo != "" ? "Ammo: " + ammo : "" )
+		Hud_SetText( Hud_GetChild( menu, "BoxInfo1" ), CAT_WS_BuiltInHopupText( ref ) )
+		Hud_SetText( Hud_GetChild( menu, "BoxInfo2" ), file.boxCats.len() == 0 ? "No attachments" : "" )
+
+		asset icon = CAT_WS_LootIcon( ref )
+		var img = Hud_GetChild( menu, "BoxImage" )
+		if ( icon != $"" )
+		{
+			RuiSetImage( Hud_GetRui( img ), "basicImage", icon )
+			Hud_SetVisible( img, true )
+		}
+		else
+		{
+			Hud_SetVisible( img, false )
+		}
+	}
+
+	// category buttons
+	for ( int i = 0; i < CAT_WS_CATEGORIES; i++ )
+	{
+		bool used = i < file.boxCats.len()
+		CAT_WS_SetElemVisible( "CatFrame" + i, used )
+		CAT_WS_SetElemVisible( "CatText" + i, used )
+		CAT_WS_SetElemVisible( "CatSel" + i, used && file.boxCats[i] == file.boxCat )
+		CAT_WS_SetButtonUsable( "CatButton" + i, used )
+		if ( used )
+			Hud_SetText( Hud_GetChild( menu, "CatText" + i ), CAT_WS_CategoryLabel( ref, file.boxCats[i] ) )
+	}
+
+	// items
+	string selected = ref != "" ? CAT_WS_GetSelection( ref, file.boxCat ) : ""
+	asset emptyIcon = CAT_WS_EmptyIcon( file.boxItems )
+	for ( int i = 0; i < CAT_WS_ITEMS; i++ )
+	{
+		bool used = i < file.boxItems.len()
+		CAT_WS_SetElemVisible( "ItemFrame" + i, used )
+		CAT_WS_SetElemVisible( "ItemIcon" + i, used )
+		CAT_WS_SetElemVisible( "ItemTier" + i, used )
+		CAT_WS_SetButtonUsable( "ItemButton" + i, used )
+		CAT_WS_SetElemVisible( "ItemSel" + i, used && file.boxItems[i] == selected )
+		if ( !used )
+			continue
+
+		string att = file.boxItems[i]
+		asset icon = att == "" ? emptyIcon : CAT_WS_LootIcon( att )
+		if ( icon == $"" )
+			icon = CAT_WS_EMPTY_ICON
+		RuiSetImage( Hud_GetRui( Hud_GetChild( menu, "ItemIcon" + i ) ), "basicImage", icon )
+		RuiSetFloat3( Hud_GetRui( Hud_GetChild( menu, "ItemTier" + i ) ), "basicImageColor", CAT_WS_TierColor( att == "" ? 0 : CAT_WS_LootTier( att ) ) )
+	}
+
+	Hud_SetText( Hud_GetChild( menu, "BoxHover" ), ref != "" && file.boxCats.len() > 0 ? CAT_WS_CategoryLabel( ref, file.boxCat ) + ": " + CAT_WS_AttachmentName( selected ) : "" )
+
+	// summary of the whole weapon
+	for ( int i = 0; i < CAT_WS_SUMMARY_LINES; i++ )
+	{
+		string line = ""
+		if ( i < file.boxCats.len() )
+		{
+			int cat = file.boxCats[i]
+			line = CAT_WS_CategoryLabel( ref, cat ) + ": " + CAT_WS_AttachmentName( CAT_WS_GetSelection( ref, cat ) )
+		}
+		Hud_SetText( Hud_GetChild( menu, "BoxSummary" + i ), line )
+	}
+}
+
+// "Empty slot" picture of the category (survival_weapon_mods emptyImage).
+asset function CAT_WS_EmptyIcon( array<string> items )
+{
+	foreach ( string att in items )
+	{
+		if ( att == "" )
+			continue
+		try
+		{
+			if ( SURVIVAL_Loot_IsRefValid( att ) )
+			{
+				asset empty = SURVIVAL_Loot_GetLootDataByRef( att ).emptyImage
+				if ( empty != $"" )
+					return empty
+			}
+		}
+		catch ( errEmpty )
+		{
+		}
+		break
+	}
+	return CAT_WS_EMPTY_ICON
+}
+
+void function CAT_WS_OnCategoryClick( var button )
+{
+	int index = int( Hud_GetScriptID( button ) )
+	if ( index < 0 || index >= file.boxCats.len() )
+		return
+	file.boxCat = file.boxCats[ index ]
+	CAT_WS_RefreshBox()
+}
+
+void function CAT_WS_OnItemClick( var button )
+{
+	int index = int( Hud_GetScriptID( button ) )
+	if ( file.boxRef == "" || index < 0 || index >= file.boxItems.len() )
+		return
+	CAT_WS_SetSelection( file.boxRef, file.boxCat, file.boxItems[ index ] )
+	CAT_WS_Give( file.boxRef, file.boxSlot )
+	CAT_WS_RefreshBox()
+	if ( file.activeTab >= 0 && file.activeTab < file.panels.len() )
+		CAT_WS_RefreshTabPanel( file.panels[ file.activeTab ] )
+}
+
+void function CAT_WS_OnItemFocus( var button )
+{
+	int index = int( Hud_GetScriptID( button ) )
+	if ( file.menu == null || file.boxRef == "" || index < 0 || index >= file.boxItems.len() )
+		return
+	Hud_SetText( Hud_GetChild( file.menu, "BoxHover" ), CAT_WS_CategoryLabel( file.boxRef, file.boxCat ) + ": " + CAT_WS_AttachmentName( file.boxItems[ index ] ) )
+}
+
+void function CAT_WS_OnItemLoseFocus( var button )
+{
+	if ( file.menu == null || file.boxRef == "" || file.boxCats.len() == 0 )
+		return
+	Hud_SetText( Hud_GetChild( file.menu, "BoxHover" ), CAT_WS_CategoryLabel( file.boxRef, file.boxCat ) + ": " + CAT_WS_AttachmentName( CAT_WS_GetSelection( file.boxRef, file.boxCat ) ) )
+}
+
+// ==========================================================================
+// FALLBACK: DevMenu pages (ui/menu_dev.nut), same idiom as ui_cat_menus.gnut.
+// Root -> category -> weapon (equip + one entry per attachment slot) -> option.
+// ==========================================================================
+
+void function CAT_WS_FB_Open()
+{
+	if ( !( "DevMenu" in uiGlobal.menus ) )
+	{
+		printt( CAT_LOG, "weapon selector: no DevMenu either" )
+		return
+	}
+	var devMenu = GetMenu( "DevMenu" )
+	file.fbActive = true
+	file.fbDepth = 0
+	if ( GetActiveMenu() == devMenu )
+	{
+		file.fbFromDevMenu = true
+		file.openedOver = null
+		thread ChangeToThisMenu( CAT_WS_FB_RootPage )
+		return
+	}
+	file.fbFromDevMenu = false
+	file.openedOver = GetActiveMenu()
+	AdvanceMenu( devMenu )
+	thread CAT_WS_FB_Open_Thread()
+}
+
+// DevMenu's MENU_OPEN builds its default page first; switch afterwards.
+void function CAT_WS_FB_Open_Thread()
+{
+	WaitFrame()
+	WaitFrame()
+	if ( GetActiveMenu() != GetMenu( "DevMenu" ) )
+		return
+	ChangeToThisMenu( CAT_WS_FB_RootPage )
+}
+
+void function CAT_WS_FB_Goto( void functionref() page )
+{
+	thread ChangeToThisMenu( page )
+}
+
+void function CAT_WS_FB_Noop( var unused )
+{
+}
+
+// Leaves the selector pages: CAT_UI_BackToMainMenu reopens the aim trainer
+// main menu (DevMenu main page in fallback mode) with its own state.
+void function CAT_WS_FB_Back()
+{
+	CAT_WS_ReturnToMain()
+}
+
+void function CAT_WS_FB_Header()
+{
+	SetupDevFunc( "<< Back to Aim Trainer", void function( var unused )
+	{
+		CAT_WS_FB_Back()
+	} )
+	SetupDevFunc( "Slot: " + CAT_WS_SlotLabel( file.slot ) + "  (click to switch)", void function( var unused )
+	{
+		file.slot = file.slot == 1 ? 0 : 1
+		CAT_WS_FB_Refresh()
+	} )
+}
+
+// Rebuild the current page in place (DevMenu has no refresh; go one page back
+// and forward again so the history depth stays the same).
+void function CAT_WS_FB_Refresh()
+{
+	int depth = file.fbDepth
+	if ( depth <= 1 )
+	{
+		thread CAT_WS_FB_ReplacePage( CAT_WS_FB_RootPage )
+		return
+	}
+	if ( depth == 2 )
+	{
+		int tab = file.fbTab
+		thread CAT_WS_FB_ReplacePage( void function() : ( tab ) { CAT_WS_FB_TabPage( tab ) } )
+		return
+	}
+	string ref = file.fbRef
+	thread CAT_WS_FB_ReplacePage( void function() : ( ref ) { CAT_WS_FB_WeaponPage( ref ) } )
+}
+
+void function CAT_WS_FB_ReplacePage( void functionref() page )
+{
+	if ( !( "DevMenu" in uiGlobal.menus ) || GetActiveMenu() != GetMenu( "DevMenu" ) )
+		return
+	UICodeCallback_NavigateBack()
+	if ( GetActiveMenu() != GetMenu( "DevMenu" ) )
+		return
+	ChangeToThisMenu( page )
+}
+
+void function CAT_WS_FB_RootPage()
+{
+	file.fbActive = true
+	file.fbDepth = 1
+	CAT_WS_FB_Header()
+	for ( int t = 0; t < file.tabTitles.len(); t++ )
+	{
+		int tab = t
+		SetupDevMenu( file.tabTitles[ t ], void function( var unused ) : ( tab )
+		{
+			CAT_WS_FB_Goto( void function() : ( tab ) { CAT_WS_FB_TabPage( tab ) } )
+		} )
+	}
+	SetupDevFunc( "Primary: " + CAT_WS_WeaponName( file.equipped[0] ) + "   Secondary: " + CAT_WS_WeaponName( file.equipped[1] ), CAT_WS_FB_Noop )
+}
+
+void function CAT_WS_FB_TabPage( int tab )
+{
+	file.fbActive = true
+	file.fbDepth = 2
+	file.fbTab = tab
+	CAT_WS_FB_Header()
+	array<string> refs = CAT_WS_TabWeapons( tab )
+	if ( refs.len() == 0 )
+		SetupDevFunc( "(no weapons available)", CAT_WS_FB_Noop )
+	foreach ( string r in refs )
+	{
+		string ref = r
+		string label = CAT_WS_WeaponName( ref )
+		if ( file.equipped[0] == ref )
+			label += "  [PRIMARY]"
+		if ( file.equipped[1] == ref )
+			label += "  [SECONDARY]"
+		SetupDevMenu( label, void function( var unused ) : ( ref )
+		{
+			CAT_WS_FB_Goto( void function() : ( ref ) { CAT_WS_FB_WeaponPage( ref ) } )
+		} )
+	}
+}
+
+void function CAT_WS_FB_WeaponPage( string ref )
+{
+	file.fbActive = true
+	file.fbDepth = 3
+	file.fbRef = ref
+	CAT_WS_FB_Header()
+
+	SetupDevFunc( "Equip " + CAT_WS_WeaponName( ref ) + " as " + CAT_WS_SlotLabel( file.slot ), void function( var unused ) : ( ref )
+	{
+		CAT_WS_Give( ref, file.slot )
+		EmitUISound( "UI_Menu_Accept" )
+		CAT_WS_FB_Refresh()
+	} )
+
+	array<int> cats = CAT_WS_WeaponCategories( ref )
+	if ( cats.len() == 0 )
+		SetupDevFunc( "(no attachments)", CAT_WS_FB_Noop )
+	foreach ( int c in cats )
+	{
+		int cat = c
+		SetupDevMenu( CAT_WS_CategoryLabel( ref, cat ) + ": " + CAT_WS_AttachmentName( CAT_WS_GetSelection( ref, cat ) ), void function( var unused ) : ( ref, cat )
+		{
+			CAT_WS_FB_Goto( void function() : ( ref, cat ) { CAT_WS_FB_OptionPage( ref, cat ) } )
+		} )
+	}
+
+	string builtIn = CAT_WS_BuiltInHopupText( ref )
+	if ( builtIn != "" )
+		SetupDevFunc( builtIn + " (built in)", CAT_WS_FB_Noop )
+}
+
+// Picking an option equips the weapon with it (in the selected slot), like a
+// click in the custom attachments box, then returns to the weapon page.
+void function CAT_WS_FB_OptionPage( string ref, int cat )
+{
+	file.fbActive = true
+	file.fbDepth = 4
+	file.fbRef = ref
+	file.fbCat = cat
+	SetupDevFunc( "<< Back to " + CAT_WS_WeaponName( ref ), void function( var unused )
+	{
+		CAT_WS_FB_PopToWeapon()
+	} )
+
+	string selected = CAT_WS_GetSelection( ref, cat )
+	array<string> options = [ "" ]
+	options.extend( CAT_WS_GetOptions( ref, cat ) )
+	foreach ( string o in options )
+	{
+		string att = o
+		SetupDevFunc( ( att == selected ? "> " : "" ) + CAT_WS_AttachmentName( att ), void function( var unused ) : ( ref, cat, att )
+		{
+			CAT_WS_SetSelection( ref, cat, att )
+			CAT_WS_Give( ref, file.slot )
+			EmitUISound( "UI_Menu_Accept" )
+			CAT_WS_FB_PopToWeapon()
+		} )
+	}
+}
+
+void function CAT_WS_FB_PopToWeapon()
+{
+	thread CAT_WS_FB_PopToWeapon_Thread()
+}
+
+// The weapon page is the previous DevMenu history entry; going back rebuilds it.
+void function CAT_WS_FB_PopToWeapon_Thread()
+{
+	if ( !( "DevMenu" in uiGlobal.menus ) || GetActiveMenu() != GetMenu( "DevMenu" ) )
+		return
+	UICodeCallback_NavigateBack()
+}

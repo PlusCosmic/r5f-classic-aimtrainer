@@ -1,0 +1,1568 @@
+// Cosmic Aim Trainer -- UI VM menus.
+//
+// Two UI paths:
+//   PRIMARY  custom menus from resource/ui/menus/cosmic_aimtrainer/*.menu
+//            (main, settings, results), ports of the original R5R
+//            FRChallenges menus. Created after InitMenus has finished,
+//            because AddMenu needs GetMenu( "MainMenu" ) (InitButtonRCP).
+//   FALLBACK pages inside Flowstate's DevMenu list (ui/menu_dev.nut). Used when
+//            the custom menus could not be created/validated, when a custom
+//            menu throws at runtime, or when forced with
+//            "script_ui CAT_UI_ForceFallback( true )".
+// Custom path weapon button -> CAT_UI_OpenWeaponSelector() (ui_cat_weaponselector.gnut).
+// The fallback path keeps its own DevMenu weapon pages.
+//
+// Settings controls are script driven (no engine ConVar binding): SwitchButtons
+// use Hud_SetDialogListSelectionValue / Hud_GetDialogListSelectionValue, sliders
+// Hud_SliderControl_Set/GetCurrentValue, text entries Hud_SetUTF8Text /
+// Hud_GetUTF8Text, all on UIE_CHANGE (same as S21 ui/panel_lab_targets.nut and
+// ui/menu_firstperson_reticle_options_color.nut). A change writes the
+// cosmic_aimtrainer_<key> ConVar at once and sends "set" shortly after (sliders
+// and typing fire many changes).
+//
+// UI -> server goes straight through ClientCommand( "cosmic_aimtrainer ..." ),
+// the same way the DevMenu sends its server commands.
+//
+// The UI VM survives level changes: never cache CAT_IsEnabled() here; all
+// entry points below are only reached through the client VM, which only runs
+// on the aim trainer playlist.
+
+global function CAT_UIInit
+global function CAT_UI_ForceFallback
+
+// client -> UI (RunUIScript)
+global function CAT_UI_OpenMainMenu
+global function CAT_UI_SetChallengeActive
+global function CAT_UI_ShowResults
+global function CAT_UI_CloseResults
+global function CAT_UI_CloseAll
+global function CAT_UI_SetLoadout
+
+// weapon selector (or anything else) -> back to the aim trainer main menu
+global function CAT_UI_BackToMainMenu
+
+const int CAT_DRILL_BUTTONS = 16
+const int CAT_FB_WEAPONS_PER_PAGE = 50
+const float CAT_SETTING_SEND_DELAY = 0.3
+const int CAT_SETTINGS_PAGES = 2
+
+// Mirrors CAT_DEFAULT_WEAPON (SERVER-only global in sv_cat_core.gnut).
+const string CAT_DEFAULT_WEAPON_UI = "mp_weapon_wingman"
+
+// Optional kill switch for the custom menus (see report: needs a mod.vdf
+// ConVar to exist; only an explicit "0" disables them).
+const string CAT_CUSTOM_MENUS_CONVAR = "cosmic_aimtrainer_custommenus"
+
+enum eCATMenuMode
+{
+	NONE,
+	MAIN,      // main / settings / weapon picker (player idle, frozen)
+	RESULTS,   // results screen (server waiting for skip / restart)
+}
+
+struct CATResultsData
+{
+	bool valid = false
+	int drillId = 0
+	int hits = 0
+	int kills = 0
+	float accuracy = 0.0
+	int damage = 0
+	int crits = 0
+	int best = 0
+	bool isNewBest = false
+	int totalShots = 0
+}
+
+struct CATWeaponEntry
+{
+	string ref
+	string name
+}
+
+struct
+{
+	bool inited = false
+	bool menusReady = false
+	bool customMenus = false
+	bool forceFallback = false
+
+	var mainMenu = null
+	var settingsMenu = null
+	var resultsMenu = null
+
+	array<int> buttonDrill       // drill id per DrillButton index, -1 = unused
+	int sessionKills = 0
+
+	// settings menu controls
+	table<var, string> controlKey   // control -> setting key
+	table<string, var> switchByKey
+	table<string, var> sliderByKey
+	table<string, var> entryByKey
+	bool syncing = false            // true while script writes values into controls
+	int settingsPage = 0
+	table<string, int> pendingSend  // key -> send token of the newest change
+	int sendToken = 0
+	bool challengeActive = false
+
+	int mode = eCATMenuMode.NONE
+	int watchGen = 0
+	int openGen = 0
+
+	string weapon0 = ""
+	string weapon1 = ""
+	int weaponSlot = 0
+	string optic = ""
+
+	CATResultsData results
+} file
+
+// --------------------------------------------------------------------------
+// Init
+
+void function CAT_UIInit()
+{
+	if ( file.inited )
+		return
+	file.inited = true
+
+	for ( int i = 0; i < CAT_DRILL_BUTTONS; i++ )
+		file.buttonDrill.append( -1 )
+
+	AddUICallback_LevelShutdown( CAT_UI_OnLevelShutdown )
+	thread CAT_UI_CreateMenus_Thread()
+}
+
+void function CAT_UI_OnLevelShutdown()
+{
+	file.mode = eCATMenuMode.NONE
+	file.watchGen++
+	file.openGen++
+	file.challengeActive = false
+	file.results.valid = false
+	file.weapon0 = ""
+	file.weapon1 = ""
+}
+
+// Testing aid: "script_ui CAT_UI_ForceFallback( true )".
+void function CAT_UI_ForceFallback( bool force )
+{
+	file.forceFallback = force
+	printt( CAT_LOG, "UI fallback forced:", force )
+}
+
+bool function CAT_UI_UseCustom()
+{
+	return file.customMenus && !file.forceFallback
+}
+
+// CAT_UIInit runs from ModSystem_RunCallbacks, before InitMenus(). InitMenus is
+// synchronous, so once a frame has passed with DevMenu (the last AddMenu in
+// InitMenus) registered, all of its init loops are done.
+void function CAT_UI_CreateMenus_Thread()
+{
+	int frames = 0
+	while ( !( "MainMenu" in uiGlobal.menus ) || !( "DevMenu" in uiGlobal.menus ) )
+	{
+		WaitFrame()
+		if ( ++frames > 3000 )
+		{
+			printt( CAT_LOG, "InitMenus never finished? using fallback UI" )
+			file.menusReady = true
+			return
+		}
+	}
+	WaitFrame()
+
+	bool disabled = false
+	try
+	{
+		disabled = GetConVarString( CAT_CUSTOM_MENUS_CONVAR ) == "0"
+	}
+	catch ( errCv )
+	{
+		disabled = false
+	}
+
+	if ( disabled )
+	{
+		printt( CAT_LOG, "custom menus disabled by", CAT_CUSTOM_MENUS_CONVAR )
+		file.customMenus = false
+	}
+	else
+	{
+		file.customMenus = CAT_UI_TryCreateCustomMenus()
+	}
+
+	file.menusReady = true
+	printt( CAT_LOG, "UI ready, custom menus:", file.customMenus )
+}
+
+bool function CAT_UI_TryCreateCustomMenus()
+{
+	file.mainMenu = CAT_UI_TryAddMenu( "CAT_MainMenu", $"resource/ui/menus/cosmic_aimtrainer/main.menu", CAT_InitMainMenu,
+		[ "ScreenBlur", "ChallengesTab", "SettingsTab", "Description", "DrillHint", "DrillButton0", "DrillButton15", "DrillFrame15", "DrillFrameNew15",
+		  "DrillText15", "DrillTag15", "WeaponSelector", "DummiesKilledCounter", "CurrentWeapon" ] )
+	if ( file.mainMenu == null )
+		return false
+
+	file.settingsMenu = CAT_UI_TryAddMenu( "CAT_SettingsMenu", $"resource/ui/menus/cosmic_aimtrainer/settings.menu", CAT_InitSettingsMenu,
+		[ "ScreenBlur", "ChallengesTab", "SettingsTab", "WeaponSelector", "ShieldSwitch", "HealthSlider", "HealthEntry", "SpeedSwitch",
+		  "DistanceSlider", "DistanceEntry", "ImmortalSwitch", "ReloadHitSwitch", "ReloadKillSwitch", "ColorSwitch", "InfiniteSwitch",
+		  "DurationEntry", "Pages", "NextPageButton", "PrevPageButton", "ResetButton" ] )
+	if ( file.settingsMenu == null )
+		return false
+
+	file.resultsMenu = CAT_UI_TryAddMenu( "CAT_ResultsMenu", $"resource/ui/menus/cosmic_aimtrainer/results.menu", CAT_InitResultsMenu,
+		[ "ChallengeResultsFrame", "Title", "PersonalBestData", "WasNewPersonalBest", "WasNotNewPersonalBest", "ShotsHitResultFinal",
+		  "ShotsHitResultFinal2", "ShotsHitResultFinalWasNotNew", "ShotsHitResultFinal2WasNotNew", "DummiesKilledResult", "AccuracyResult",
+		  "ShotsHitResult", "DamageDoneResult", "CriticalShotsResult", "MainMenuButton", "RestartButton" ] )
+	if ( file.resultsMenu == null )
+		return false
+
+	return true
+}
+
+// AddMenu + what InitMenus' loops do for one menu. Our menus use no tab
+// panels (the CHALLENGES / SETTINGS tabs are plain buttons), DefaultFocus,
+// footers or EnableKeyBindingIcons, so the init func is the only per-menu step
+// that applies.
+var function CAT_UI_TryAddMenu( string name, asset resFile, void functionref( var ) initFn, array<string> requiredChildren )
+{
+	var menu = null
+	try
+	{
+		menu = AddMenu( name, resFile, null, name )
+	}
+	catch ( errAdd )
+	{
+		printt( CAT_LOG, "AddMenu failed", name, errAdd )
+		CAT_UI_RemoveMenuEntry( name )
+		return null
+	}
+
+	if ( menu == null )
+	{
+		printt( CAT_LOG, "AddMenu returned null", name )
+		CAT_UI_RemoveMenuEntry( name )
+		return null
+	}
+
+	foreach ( string child in requiredChildren )
+	{
+		bool has = false
+		try
+		{
+			has = Hud_HasChild( menu, child )
+		}
+		catch ( errChild )
+		{
+			has = false
+		}
+		if ( !has )
+		{
+			printt( CAT_LOG, "menu", name, "is missing element", child, "- was the .menu file found?" )
+			CAT_UI_RemoveMenuEntry( name )
+			return null
+		}
+	}
+
+	try
+	{
+		initFn( menu )
+		uiGlobal.menuData[ menu ].initFunc = initFn
+	}
+	catch ( errInit )
+	{
+		printt( CAT_LOG, "menu init failed", name, errInit )
+		CAT_UI_RemoveMenuEntry( name )
+		return null
+	}
+
+	return menu
+}
+
+void function CAT_UI_RemoveMenuEntry( string name )
+{
+	if ( !( name in uiGlobal.menus ) )
+		return
+	var menu = uiGlobal.menus[ name ]
+	delete uiGlobal.menus[ name ]
+	if ( menu == null )
+		return
+	uiGlobal.allMenus.removebyvalue( menu )
+	if ( menu in uiGlobal.menuData )
+		delete uiGlobal.menuData[ menu ]
+}
+
+// --------------------------------------------------------------------------
+// Shared helpers
+
+void function CAT_UI_Send( string args )
+{
+	if ( !IsConnected() )
+		return
+	ClientCommand( CAT_CLIENT_COMMAND + " " + args )
+}
+
+void function CAT_UI_SetButtonText( var button, string text )
+{
+	var rui = Hud_GetRui( button )
+	if ( rui != null )
+		RuiSetString( rui, "buttonText", text )
+}
+
+array<CATDrillDef> function CAT_UI_EnabledDrills()
+{
+	array<CATDrillDef> result
+	foreach ( CATDrillDef d in CAT_GetAllDrills() )
+	{
+		if ( d.enabled )
+			result.append( d )
+	}
+	return result
+}
+
+string function CAT_UI_DrillLabel( CATDrillDef d )
+{
+	if ( d.tag != "" )
+		return d.name + "  (" + d.tag + ")"
+	return d.name
+}
+
+string function CAT_UI_DrillName( int drillId )
+{
+	if ( CAT_IsValidDrill( drillId ) )
+		return CAT_GetDrill( drillId ).name
+	return "CHALLENGE RESULTS"
+}
+
+string function CAT_UI_WeaponName( string ref )
+{
+	if ( ref == "" )
+		return "-"
+	try
+	{
+		if ( SURVIVAL_Loot_IsRefValid( ref ) )
+		{
+			string name = Localize( SURVIVAL_Loot_GetLootDataByRef( ref ).pickupString )
+			if ( name != "" )
+				return name
+		}
+	}
+	catch ( errName )
+	{
+	}
+	return ref
+}
+
+string function CAT_UI_LoadoutText()
+{
+	string w0 = file.weapon0 != "" ? file.weapon0 : CAT_DEFAULT_WEAPON_UI
+	return "Weapons: " + CAT_UI_WeaponName( w0 ) + "  /  " + CAT_UI_WeaponName( file.weapon1 )
+}
+
+// Main menu line, worded like the original ("Current weapon: Wingman").
+string function CAT_UI_CurrentWeaponText()
+{
+	string w0 = file.weapon0 != "" ? file.weapon0 : CAT_DEFAULT_WEAPON_UI
+	string text = "Current weapon: " + CAT_UI_WeaponName( w0 )
+	if ( file.weapon1 != "" )
+		text += "  /  " + CAT_UI_WeaponName( file.weapon1 )
+	return text
+}
+
+void function CAT_UI_SetLabelColor( var elem, int r, int g, int b )
+{
+	try
+	{
+		Hud_SetColor( elem, r, g, b, 255 )
+	}
+	catch ( errColor )
+	{
+	}
+}
+
+bool function CAT_UI_IsOurMenuActive()
+{
+	var active = GetActiveMenu()
+	if ( active == null )
+		return false
+	if ( active == file.mainMenu || active == file.settingsMenu || active == file.resultsMenu )
+		return true
+	return ( "DevMenu" in uiGlobal.menus ) && active == GetMenu( "DevMenu" )
+}
+
+// Waits until a menu can actually be shown (the main menu is first requested
+// right after spawn, possibly while the load screen is still up).
+bool function CAT_UI_WaitUntilReady( int gen )
+{
+	float timeout = UITime() + 20.0
+	while ( !file.menusReady || !IsFullyConnected() || !IsLoadScreenFinished() )
+	{
+		if ( UITime() > timeout )
+			break
+		WaitFrame()
+		if ( gen != file.openGen )
+			return false
+	}
+	return gen == file.openGen && IsConnected() && file.menusReady
+}
+
+// --------------------------------------------------------------------------
+// Menu watch: notices the player closing our menus by any route (Esc, DevMenu
+// back, another menu taking over) and tells the server.
+
+void function CAT_UI_StartWatch( int mode )
+{
+	file.mode = mode
+	file.watchGen++
+	thread CAT_UI_Watch_Thread( file.watchGen )
+}
+
+void function CAT_UI_StopWatch()
+{
+	file.mode = eCATMenuMode.NONE
+	file.watchGen++
+}
+
+void function CAT_UI_Watch_Thread( int gen )
+{
+	WaitFrame()
+	WaitFrame()
+	while ( gen == file.watchGen )
+	{
+		if ( GetActiveMenu() == null )
+		{
+			int mode = file.mode
+			CAT_UI_StopWatch()
+			if ( mode == eCATMenuMode.RESULTS )
+				CAT_UI_Send( "skip" )
+			else if ( mode == eCATMenuMode.MAIN && !file.challengeActive )
+				CAT_UI_NotifyMenuClosed()
+			return
+		}
+		wait 0.1
+	}
+}
+
+void function CAT_UI_NotifyMenuClosed()
+{
+	CAT_UI_Send( "menu 0" )
+	if ( IsConnected() )
+		RunClientScript( "CAT_CL_UI_MenuClosed" )
+}
+
+// --------------------------------------------------------------------------
+// Client -> UI entry points
+
+void function CAT_UI_OpenMainMenu( int sessionKills )
+{
+	file.sessionKills = sessionKills
+	file.openGen++
+	thread CAT_UI_OpenMainMenu_Thread( file.openGen )
+}
+
+void function CAT_UI_OpenMainMenu_Thread( int gen )
+{
+	if ( !CAT_UI_WaitUntilReady( gen ) )
+		return
+	if ( file.challengeActive )
+		return
+	CAT_UI_ShowMain()
+}
+
+void function CAT_UI_SetChallengeActive( bool active )
+{
+	file.challengeActive = active
+	if ( active )
+	{
+		file.openGen++
+		CAT_UI_StopWatch()
+	}
+}
+
+void function CAT_UI_ShowResults( int drillId, int hits, int kills, float accuracy, int damage, int crits, int best, bool isNewBest, int totalShots )
+{
+	CATResultsData r = file.results // reference: structs cannot be assigned whole
+	r.valid = true
+	r.drillId = drillId
+	r.hits = hits
+	r.kills = kills
+	r.accuracy = accuracy
+	r.damage = damage
+	r.crits = crits
+	r.best = best
+	r.isNewBest = isNewBest
+	r.totalShots = totalShots
+	file.challengeActive = false
+	file.openGen++
+	thread CAT_UI_ShowResults_Thread( file.openGen )
+}
+
+void function CAT_UI_ShowResults_Thread( int gen )
+{
+	if ( !CAT_UI_WaitUntilReady( gen ) )
+		return
+
+	EmitUISound( "UI_Menu_Accept" )
+	if ( CAT_UI_UseCustom() )
+	{
+		try
+		{
+			CAT_UI_RefreshResultsMenu()
+			CloseAllMenus()
+			AdvanceMenu( file.resultsMenu )
+			CAT_UI_StartWatch( eCATMenuMode.RESULTS )
+			return
+		}
+		catch ( errRes )
+		{
+			CAT_UI_OnCustomMenuError( errRes )
+		}
+	}
+	CAT_FB_Open( CAT_FB_ResultsPage )
+	CAT_UI_StartWatch( eCATMenuMode.RESULTS )
+}
+
+void function CAT_UI_CloseResults()
+{
+	if ( file.mode != eCATMenuMode.RESULTS )
+		return
+	CAT_UI_StopWatch()
+	if ( CAT_UI_IsOurMenuActive() )
+		CloseAllMenus()
+}
+
+void function CAT_UI_CloseAll()
+{
+	file.openGen++
+	CAT_UI_StopWatch()
+	if ( CAT_UI_IsOurMenuActive() )
+		CloseAllMenus()
+}
+
+void function CAT_UI_SetLoadout( string weapon0, string weapon1 )
+{
+	file.weapon0 = weapon0
+	file.weapon1 = weapon1
+	if ( file.mainMenu != null && GetActiveMenu() == file.mainMenu )
+	{
+		try
+		{
+			Hud_SetText( Hud_GetChild( file.mainMenu, "CurrentWeapon" ), CAT_UI_CurrentWeaponText() )
+		}
+		catch ( errLoad )
+		{
+		}
+	}
+}
+
+void function CAT_UI_OnCustomMenuError( var err )
+{
+	printt( CAT_LOG, "custom menu error, switching to fallback UI:", err )
+	file.customMenus = false
+}
+
+// --------------------------------------------------------------------------
+// Actions (shared by both paths)
+
+// Main menu (or fallback root). Tells the server the player is in the menu.
+void function CAT_UI_ShowMain()
+{
+	if ( !IsConnected() )
+		return
+
+	if ( CAT_UI_UseCustom() )
+	{
+		try
+		{
+			CAT_UI_RefreshMainMenu()
+			CloseAllMenus()
+			AdvanceMenu( file.mainMenu )
+			CAT_UI_StartWatch( eCATMenuMode.MAIN )
+			CAT_UI_Send( "menu 1" )
+			return
+		}
+		catch ( errMain )
+		{
+			CAT_UI_OnCustomMenuError( errMain )
+		}
+	}
+
+	CAT_FB_Open( CAT_FB_MainPage )
+	CAT_UI_StartWatch( eCATMenuMode.MAIN )
+	CAT_UI_Send( "menu 1" )
+}
+
+void function CAT_UI_ShowSettings()
+{
+	if ( CAT_UI_UseCustom() )
+	{
+		try
+		{
+			CAT_UI_RefreshSettingsMenu()
+			CloseAllMenus()
+			AdvanceMenu( file.settingsMenu )
+			return
+		}
+		catch ( errSet )
+		{
+			CAT_UI_OnCustomMenuError( errSet )
+		}
+	}
+	CAT_FB_Open( CAT_FB_SettingsPage )
+}
+
+// For the weapon selector: return to the aim trainer main menu.
+void function CAT_UI_BackToMainMenu()
+{
+	CAT_UI_ShowMain()
+}
+
+void function CAT_UI_StartDrill( int drillId )
+{
+	if ( !CAT_IsValidDrill( drillId ) )
+		return
+	file.openGen++
+	CAT_UI_StopWatch()
+	CAT_UI_FlushSettings()
+	EmitUISound( "UI_Menu_Accept" )
+	CAT_UI_Send( "start " + drillId.tostring() )
+	CloseAllMenus()
+}
+
+// Main menu "Close": walk around until Reload is held again.
+void function CAT_UI_LeaveMain()
+{
+	CAT_UI_StopWatch()
+	CloseAllMenus()
+	if ( !file.challengeActive )
+		CAT_UI_NotifyMenuClosed()
+}
+
+void function CAT_UI_ResultsRestart()
+{
+	CAT_UI_StopWatch()
+	CAT_UI_Send( "restart" )
+	CloseAllMenus()
+}
+
+// Server answers "skip" with CAT_CL_OpenMainMenu.
+void function CAT_UI_ResultsToMain()
+{
+	CAT_UI_StopWatch()
+	CAT_UI_Send( "skip" )
+	CloseAllMenus()
+}
+
+// --------------------------------------------------------------------------
+// Settings
+
+int function CAT_UI_GetSetting( string key )
+{
+	int value = CAT_DefaultSetting( key )
+	try
+	{
+		value = GetConVarInt( "cosmic_aimtrainer_" + key )
+	}
+	catch ( errGet )
+	{
+	}
+	return CAT_ClampSetting( key, value )
+}
+
+void function CAT_UI_SetSetting( string key, int value )
+{
+	value = CAT_ClampSetting( key, value )
+	try
+	{
+		SetConVarInt( "cosmic_aimtrainer_" + key, value )
+	}
+	catch ( errSetCv )
+	{
+		printt( CAT_LOG, "could not write convar", key, errSetCv )
+	}
+	CAT_UI_Send( "set " + key + " " + value.tostring() )
+}
+
+// Writes the ConVar now and sends "set" once the value has been stable for
+// CAT_SETTING_SEND_DELAY (sliders and typing fire a change per step/key).
+void function CAT_UI_SetSettingLive( string key, int value )
+{
+	value = CAT_ClampSetting( key, value )
+	try
+	{
+		SetConVarInt( "cosmic_aimtrainer_" + key, value )
+	}
+	catch ( errLiveCv )
+	{
+		printt( CAT_LOG, "could not write convar", key, errLiveCv )
+	}
+
+	file.sendToken++
+	int token = file.sendToken
+	if ( key in file.pendingSend )
+		file.pendingSend[ key ] = token
+	else
+		file.pendingSend[ key ] <- token
+	thread CAT_UI_SendSettingLater_Thread( key, token )
+}
+
+void function CAT_UI_SendSettingLater_Thread( string key, int token )
+{
+	wait CAT_SETTING_SEND_DELAY
+	if ( !( key in file.pendingSend ) || file.pendingSend[ key ] != token )
+		return
+	delete file.pendingSend[ key ]
+	CAT_UI_Send( "set " + key + " " + CAT_UI_GetSetting( key ).tostring() )
+}
+
+// Sends every not-yet-sent change right away (leaving settings, starting a drill).
+void function CAT_UI_FlushSettings()
+{
+	array<string> keys
+	foreach ( string key, int token in file.pendingSend )
+	{
+		if ( token > 0 )
+			keys.append( key )
+	}
+	foreach ( string key in keys )
+	{
+		delete file.pendingSend[ key ]
+		CAT_UI_Send( "set " + key + " " + CAT_UI_GetSetting( key ).tostring() )
+	}
+}
+
+// Digits only (the entries are NumericInputOnly); -1 when empty/invalid.
+int function CAT_UI_ParseInt( string text )
+{
+	string t = text
+	if ( t == "" || t.len() > 6 )
+		return -1
+	for ( int i = 0; i < t.len(); i++ )
+	{
+		string c = t.slice( i, i + 1 )
+		if ( c < "0" || c > "9" )
+			return -1
+	}
+	return int( t )
+}
+
+int function CAT_UI_NextInList( array<int> values, int current )
+{
+	foreach ( int v in values )
+	{
+		if ( v > current )
+			return v
+	}
+	return values[0]
+}
+
+int function CAT_UI_NextSettingValue( string key, int v )
+{
+	array<int> durations = [ 30, 45, 60, 90, 120, 180, 300, 600 ]
+	array<int> distances = [ 1, 2, 3, 4, 5, 7, 10, 15, 20 ]
+	array<int> healths = [ 1, 25, 50, 75, 100 ]
+	switch ( key )
+	{
+		case "duration": return CAT_UI_NextInList( durations, v )
+		case "distance": return CAT_UI_NextInList( distances, v )
+		case "health": return CAT_UI_NextInList( healths, v )
+		case "shield": return ( v + 1 ) % 5
+		case "speed": return ( v + 1 ) % 5
+		case "color": return ( v + 1 ) % 6
+	}
+	return v != 0 ? 0 : 1 // toggles
+}
+
+string function CAT_UI_OnOff( int v )
+{
+	return v != 0 ? "On" : "Off"
+}
+
+string function CAT_UI_SettingLabel( string key, int v )
+{
+	switch ( key )
+	{
+		case "duration":
+			return "Duration: " + v.tostring() + " s"
+		case "infinite":
+			return "Infinite challenge: " + CAT_UI_OnOff( v )
+		case "shield":
+			array<string> shields = [ "No shields", "Level 1 (White)", "Level 2 (Blue)", "Level 3 (Purple)", "Level 4 (Red)" ]
+			return "Dummy shield: " + shields[ ClampInt( v, 0, 4 ) ]
+		case "speed":
+			array<string> speeds = [ "Static", "Slow", "Normal", "Fast", "Demon" ]
+			return "Dummy speed: " + speeds[ ClampInt( v, 0, 4 ) ]
+		case "distance":
+			return "Spawn distance: x" + v.tostring()
+		case "health":
+			return "Dummy health: " + v.tostring()
+		case "color":
+			array<string> colors = [ "Grey", "Red", "Green", "Blue", "Yellow", "Random" ]
+			return "Dummy color: " + colors[ ClampInt( v, 0, 5 ) ]
+		case "immortal":
+			return "Immortal targets: " + CAT_UI_OnOff( v )
+		case "reloadhit":
+			return "Refill ammo on hit: " + CAT_UI_OnOff( v )
+		case "reloadkill":
+			return "Refill ammo on kill: " + CAT_UI_OnOff( v )
+	}
+	return key + ": " + v.tostring()
+}
+
+void function CAT_UI_CycleSetting( string key )
+{
+	CAT_UI_SetSetting( key, CAT_UI_NextSettingValue( key, CAT_UI_GetSetting( key ) ) )
+}
+
+void function CAT_UI_ResetSettings()
+{
+	foreach ( string key in CAT_SettingKeys() )
+		CAT_UI_SetSetting( key, CAT_DefaultSetting( key ) )
+}
+
+// --------------------------------------------------------------------------
+// Weapons (UI VM has the loot table: sh_survival_loot_all.gnut is a UI script
+// and _menus.nut runs SURVIVAL_Loot_All_InitShared on level init)
+
+array<CATWeaponEntry> function CAT_UI_GetWeapons()
+{
+	array<CATWeaponEntry> result
+	try
+	{
+		foreach ( LootData d in SURVIVAL_Loot_GetByType( eLootType.MAINWEAPON ) )
+		{
+			// Only refs that are also weapon classnames: the server gives the
+			// ref directly, so tiered kit refs (_gold, _blueset... have a
+			// baseWeapon) and care package refs ("crate" base mod) are skipped.
+			// Base rows may still carry dormant hopup baseMods; that's fine.
+			if ( d.ref != d.baseWeapon )
+				continue
+			if ( d.ref.find( "mp_weapon_" ) != 0 || CAT_UI_IsExcludedWeaponRef( d.ref ) )
+				continue
+			if ( d.baseMods.contains( "crate" ) )
+				continue
+			bool novelty = false
+			foreach ( string mod in d.baseMods )
+			{
+				if ( mod.find( "april_fools" ) != -1 )
+					novelty = true
+			}
+			if ( novelty || SURVIVAL_Loot_IsRefDisabled( d.ref ) )
+				continue
+
+			CATWeaponEntry e
+			e.ref = d.ref
+			e.name = Localize( d.pickupString )
+			if ( e.name == "" )
+				e.name = d.ref
+			result.append( e )
+		}
+	}
+	catch ( errW )
+	{
+		printt( CAT_LOG, "weapon list failed", errW )
+	}
+	result.sort( CAT_UI_SortWeaponEntries )
+	return result
+}
+
+array<CATWeaponEntry> function CAT_UI_GetOptics()
+{
+	array<CATWeaponEntry> result
+	try
+	{
+		foreach ( LootData d in SURVIVAL_Loot_GetByType( eLootType.ATTACHMENT ) )
+		{
+			if ( d.attachmentType != eWeaponAttachmentType.SCOPE )
+				continue
+			if ( SURVIVAL_Loot_IsRefDisabled( d.ref ) )
+				continue
+
+			CATWeaponEntry e
+			e.ref = d.ref
+			e.name = Localize( d.pickupString )
+			if ( e.name == "" )
+				e.name = d.ref
+			result.append( e )
+		}
+	}
+	catch ( errO )
+	{
+		printt( CAT_LOG, "optic list failed", errO )
+	}
+	result.sort( CAT_UI_SortWeaponEntries )
+	return result
+}
+
+bool function CAT_UI_IsExcludedWeaponRef( string ref )
+{
+	if ( ref.len() > 6 && ref.slice( ref.len() - 6 ) == "_crate" )
+		return true
+	switch ( ref )
+	{
+		case "mp_weapon_titan_sword":
+		case "mp_weapon_instagib":
+			return true
+	}
+	return false
+}
+
+int function CAT_UI_SortWeaponEntries( CATWeaponEntry a, CATWeaponEntry b )
+{
+	if ( a.name > b.name )
+		return 1
+	if ( a.name < b.name )
+		return -1
+	return 0
+}
+
+void function CAT_UI_GiveWeapon( string ref )
+{
+	string cmd = "weapon " + ref + " " + file.weaponSlot.tostring()
+	if ( file.optic != "" )
+		cmd += " " + file.optic
+	CAT_UI_Send( cmd )
+
+	if ( file.weaponSlot == 1 )
+		file.weapon1 = ref
+	else
+		file.weapon0 = ref
+	EmitUISound( "UI_Menu_Accept" )
+}
+
+// ==========================================================================
+// PRIMARY: custom menus (ports of R5R FRChallenges mainmenu_main.menu,
+// mainmenu_settings.menu and challenges_results.menu)
+// ==========================================================================
+
+// ---- shared header (tabs, global settings corner button) ----
+
+void function CAT_UI_InitHeader( var menu )
+{
+	var challengesTab = Hud_GetChild( menu, "ChallengesTab" )
+	var settingsTab = Hud_GetChild( menu, "SettingsTab" )
+	CAT_UI_SetButtonText( challengesTab, "CHALLENGES" )
+	CAT_UI_SetButtonText( settingsTab, "SETTINGS" )
+	Hud_AddEventHandler( challengesTab, UIE_CLICK, CAT_UI_OnChallengesTabClick )
+	Hud_AddEventHandler( settingsTab, UIE_CLICK, CAT_UI_OnSettingsTabClick )
+
+	// Original "Global Settings" corner button (same setup as ui/menu_lobby.nut).
+	// Optional: the menu works without it.
+	try
+	{
+		var gameMenuButton = Hud_GetChild( menu, "GameMenuButton" )
+		ToolTipData gameMenuToolTip
+		gameMenuToolTip.descText = "Global Settings"
+		Hud_SetToolTipData( gameMenuButton, gameMenuToolTip )
+		HudElem_SetRuiArg( gameMenuButton, "icon", $"rui/menu/lobby/settings_icon" )
+		HudElem_SetRuiArg( gameMenuButton, "shortcutText", "Global Settings" )
+		Hud_AddEventHandler( gameMenuButton, UIE_CLICK, CAT_UI_OnGameMenuClick )
+	}
+	catch ( errCorner )
+	{
+		printt( CAT_LOG, "global settings button unavailable:", errCorner )
+	}
+}
+
+void function CAT_UI_SetTabsSelected( var menu, bool challengesSelected )
+{
+	Hud_SetSelected( Hud_GetChild( menu, "ChallengesTab" ), challengesSelected )
+	Hud_SetSelected( Hud_GetChild( menu, "SettingsTab" ), !challengesSelected )
+}
+
+void function CAT_UI_OnChallengesTabClick( var button )
+{
+	if ( GetActiveMenu() == file.mainMenu )
+		return
+	CAT_UI_FlushSettings()
+	CAT_UI_ShowMain()
+}
+
+void function CAT_UI_OnSettingsTabClick( var button )
+{
+	if ( GetActiveMenu() == file.settingsMenu )
+		return
+	CAT_UI_ShowSettings()
+}
+
+// Stacked on top of our menu, so backing out of it returns here.
+void function CAT_UI_OnGameMenuClick( var button )
+{
+	CAT_UI_FlushSettings()
+	try
+	{
+		AdvanceMenu( GetMenu( "SystemMenu" ) )
+	}
+	catch ( errSystem )
+	{
+		printt( CAT_LOG, "SystemMenu unavailable:", errSystem )
+	}
+}
+
+void function CAT_UI_OnWeaponSelectorClick( var button )
+{
+	CAT_UI_FlushSettings()
+	CAT_UI_OpenWeaponSelector()
+}
+
+// ---- main ----
+
+void function CAT_InitMainMenu( var menu )
+{
+	AddMenuEventHandler( menu, eUIEvent.MENU_NAVIGATE_BACK, CAT_Main_OnNavigateBack )
+	CAT_UI_InitHeader( menu )
+
+	for ( int i = 0; i < CAT_DRILL_BUTTONS; i++ )
+	{
+		var button = Hud_GetChild( menu, "DrillButton" + i )
+		Hud_AddEventHandler( button, UIE_CLICK, CAT_Main_OnDrillClick )
+		Hud_AddEventHandler( button, UIE_GET_FOCUS, CAT_Main_OnDrillFocus )
+		Hud_AddEventHandler( button, UIE_LOSE_FOCUS, CAT_Main_OnDrillLoseFocus )
+	}
+
+	Hud_AddEventHandler( Hud_GetChild( menu, "WeaponSelector" ), UIE_CLICK, CAT_UI_OnWeaponSelectorClick )
+}
+
+// Drill buttons follow the registry order: DrillButton0..7 = original column 1,
+// DrillButton8..15 = column 2. Disabled drills (armor swap) are hidden.
+void function CAT_UI_RefreshMainMenu()
+{
+	var menu = file.mainMenu
+	array<CATDrillDef> drills = CAT_GetAllDrills()
+
+	for ( int i = 0; i < CAT_DRILL_BUTTONS; i++ )
+	{
+		bool show = i < drills.len() && drills[i].enabled
+		string name = ""
+		string tag = ""
+		file.buttonDrill[i] = -1
+		if ( show )
+		{
+			CATDrillDef d = drills[i]
+			file.buttonDrill[i] = d.id
+			name = d.name
+			tag = d.tag
+		}
+
+		var button = Hud_GetChild( menu, "DrillButton" + i )
+		var text = Hud_GetChild( menu, "DrillText" + i )
+		var tagLabel = Hud_GetChild( menu, "DrillTag" + i )
+		Hud_SetText( text, name )
+		Hud_SetText( tagLabel, tag )
+		CAT_UI_SetLabelColor( text, 255, 255, 255 )
+
+		Hud_SetVisible( button, show )
+		Hud_SetEnabled( button, show )
+		Hud_SetVisible( Hud_GetChild( menu, "DrillFrame" + i ), show )
+		Hud_SetVisible( Hud_GetChild( menu, "DrillFrameNew" + i ), show && tag == "New!" )
+		Hud_SetVisible( text, show )
+		Hud_SetVisible( tagLabel, show && tag != "" )
+	}
+
+	Hud_SetText( Hud_GetChild( menu, "DrillHint" ), "" )
+	Hud_SetText( Hud_GetChild( menu, "DummiesKilledCounter" ), "Dummies killed this session: " + file.sessionKills.tostring() )
+	Hud_SetText( Hud_GetChild( menu, "CurrentWeapon" ), CAT_UI_CurrentWeaponText() )
+	CAT_UI_SetTabsSelected( menu, true )
+}
+
+int function CAT_Main_IndexForButton( var button )
+{
+	int index = int( Hud_GetScriptID( button ) )
+	if ( index < 0 || index >= file.buttonDrill.len() )
+		return -1
+	return index
+}
+
+int function CAT_Main_DrillForButton( var button )
+{
+	int index = CAT_Main_IndexForButton( button )
+	if ( index < 0 )
+		return -1
+	return file.buttonDrill[ index ]
+}
+
+// Hover: highlight the name and show the drill's description under the title.
+void function CAT_Main_OnDrillFocus( var button )
+{
+	int index = CAT_Main_IndexForButton( button )
+	int drillId = CAT_Main_DrillForButton( button )
+	if ( index < 0 || drillId <= 0 || !CAT_IsValidDrill( drillId ) )
+		return
+	CAT_UI_SetLabelColor( Hud_GetChild( file.mainMenu, "DrillText" + index ), 252, 198, 3 )
+	Hud_SetText( Hud_GetChild( file.mainMenu, "DrillHint" ), CAT_GetDrill( drillId ).description )
+}
+
+void function CAT_Main_OnDrillLoseFocus( var button )
+{
+	int index = CAT_Main_IndexForButton( button )
+	if ( index < 0 )
+		return
+	CAT_UI_SetLabelColor( Hud_GetChild( file.mainMenu, "DrillText" + index ), 255, 255, 255 )
+	Hud_SetText( Hud_GetChild( file.mainMenu, "DrillHint" ), "" )
+}
+
+// Like the original: clicking a challenge starts it.
+void function CAT_Main_OnDrillClick( var button )
+{
+	int drillId = CAT_Main_DrillForButton( button )
+	if ( drillId <= 0 )
+		return
+	CAT_UI_StartDrill( drillId )
+}
+
+void function CAT_Main_OnNavigateBack()
+{
+	CAT_UI_LeaveMain()
+}
+
+// ---- settings ----
+
+void function CAT_InitSettingsMenu( var menu )
+{
+	AddMenuEventHandler( menu, eUIEvent.MENU_NAVIGATE_BACK, CAT_Settings_OnNavigateBack )
+	CAT_UI_InitHeader( menu )
+	Hud_AddEventHandler( Hud_GetChild( menu, "WeaponSelector" ), UIE_CLICK, CAT_UI_OnWeaponSelectorClick )
+
+	// page 1
+	CAT_Settings_BindSwitch( menu, "ShieldSwitch", "shield" )
+	CAT_Settings_BindSlider( menu, "HealthSlider", "HealthEntry", "health" )
+	CAT_Settings_BindSwitch( menu, "SpeedSwitch", "speed" )
+	CAT_Settings_BindSlider( menu, "DistanceSlider", "DistanceEntry", "distance" )
+	CAT_Settings_BindSwitch( menu, "ImmortalSwitch", "immortal" )
+	CAT_Settings_BindSwitch( menu, "ReloadHitSwitch", "reloadhit" )
+	CAT_Settings_BindSwitch( menu, "ReloadKillSwitch", "reloadkill" )
+	// page 2
+	CAT_Settings_BindSwitch( menu, "ColorSwitch", "color" )
+	CAT_Settings_BindSwitch( menu, "InfiniteSwitch", "infinite" )
+	CAT_Settings_BindEntry( menu, "DurationEntry", "duration" )
+
+	Hud_AddEventHandler( Hud_GetChild( menu, "PrevPageButton" ), UIE_CLICK, CAT_Settings_OnPrevPageClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "NextPageButton" ), UIE_CLICK, CAT_Settings_OnNextPageClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "ResetButton" ), UIE_CLICK, CAT_Settings_OnResetClick )
+}
+
+// The labels sit next to the controls (original layout), so the controls'
+// own title text stays empty.
+void function CAT_Settings_BindSwitch( var menu, string name, string key )
+{
+	var button = Hud_GetChild( menu, name )
+	CAT_UI_SetButtonText( button, "" )
+	file.controlKey[ button ] <- key
+	file.switchByKey[ key ] <- button
+	Hud_AddEventHandler( button, UIE_CHANGE, CAT_Settings_OnSwitchChanged )
+}
+
+void function CAT_Settings_BindSlider( var menu, string sliderName, string entryName, string key )
+{
+	var slider = Hud_GetChild( menu, sliderName )
+	if ( Hud_HasChild( slider, "BtnDropButton" ) )
+		CAT_UI_SetButtonText( Hud_GetChild( slider, "BtnDropButton" ), "" )
+	file.controlKey[ slider ] <- key
+	file.sliderByKey[ key ] <- slider
+	Hud_AddEventHandler( slider, UIE_CHANGE, CAT_Settings_OnSliderChanged )
+	CAT_Settings_BindEntry( menu, entryName, key )
+}
+
+void function CAT_Settings_BindEntry( var menu, string name, string key )
+{
+	var entry = Hud_GetChild( menu, name )
+	file.controlKey[ entry ] <- key
+	file.entryByKey[ key ] <- entry
+	Hud_AddEventHandler( entry, UIE_CHANGE, CAT_Settings_OnEntryChanged )
+	try
+	{
+		Hud_AddEventHandler( entry, UIE_LOSE_FOCUS, CAT_Settings_OnEntryLoseFocus )
+	}
+	catch ( errFocus )
+	{
+		printt( CAT_LOG, "no lose-focus event on", name, errFocus )
+	}
+}
+
+void function CAT_UI_RefreshSettingsMenu()
+{
+	var menu = file.settingsMenu
+	CAT_UI_SetTabsSelected( menu, false )
+
+	file.syncing = true
+	try
+	{
+		foreach ( string key, var button in file.switchByKey )
+			Hud_SetDialogListSelectionValue( button, CAT_UI_GetSetting( key ).tostring() )
+		foreach ( string key, var slider in file.sliderByKey )
+			Hud_SliderControl_SetCurrentValue( slider, float( CAT_UI_GetSetting( key ) ) )
+		foreach ( string key, var entry in file.entryByKey )
+			Hud_SetUTF8Text( entry, CAT_UI_GetSetting( key ).tostring() )
+	}
+	catch ( errSync )
+	{
+		printt( CAT_LOG, "settings controls refresh failed:", errSync )
+	}
+	file.syncing = false
+
+	CAT_Settings_ShowPage( file.settingsPage )
+}
+
+// Original pagination: classname SettingsBtn = page 1, SettingsBtn2 = page 2.
+void function CAT_Settings_ShowPage( int page )
+{
+	file.settingsPage = ClampInt( page, 0, CAT_SETTINGS_PAGES - 1 )
+	var menu = file.settingsMenu
+	foreach ( var elem in GetElementsByClassname( menu, "SettingsBtn" ) )
+		Hud_SetVisible( elem, file.settingsPage == 0 )
+	foreach ( var elem in GetElementsByClassname( menu, "SettingsBtn2" ) )
+		Hud_SetVisible( elem, file.settingsPage == 1 )
+	Hud_SetText( Hud_GetChild( menu, "Pages" ), "  Page: " + ( file.settingsPage + 1 ).tostring() + "/2  " )
+}
+
+void function CAT_Settings_OnPrevPageClick( var button )
+{
+	CAT_Settings_ShowPage( 0 )
+}
+
+void function CAT_Settings_OnNextPageClick( var button )
+{
+	CAT_Settings_ShowPage( 1 )
+}
+
+string function CAT_Settings_KeyFor( var control )
+{
+	if ( control in file.controlKey )
+		return file.controlKey[ control ]
+	return ""
+}
+
+// Writes a value into a control without reacting to the change it may fire.
+void function CAT_Settings_SyncSlider( string key, int value )
+{
+	if ( !( key in file.sliderByKey ) )
+		return
+	file.syncing = true
+	try
+	{
+		Hud_SliderControl_SetCurrentValue( file.sliderByKey[ key ], float( value ) )
+	}
+	catch ( errSyncSlider )
+	{
+	}
+	file.syncing = false
+}
+
+void function CAT_Settings_SyncEntry( string key, int value )
+{
+	if ( !( key in file.entryByKey ) )
+		return
+	file.syncing = true
+	try
+	{
+		Hud_SetUTF8Text( file.entryByKey[ key ], value.tostring() )
+	}
+	catch ( errSyncEntry )
+	{
+	}
+	file.syncing = false
+}
+
+void function CAT_Settings_OnSwitchChanged( var button )
+{
+	if ( file.syncing )
+		return
+	string key = CAT_Settings_KeyFor( button )
+	if ( key == "" )
+		return
+	int value = CAT_UI_ParseInt( Hud_GetDialogListSelectionValue( button ) )
+	if ( value < 0 || CAT_ClampSetting( key, value ) == CAT_UI_GetSetting( key ) )
+		return
+	CAT_UI_SetSettingLive( key, value )
+}
+
+void function CAT_Settings_OnSliderChanged( var slider )
+{
+	if ( file.syncing )
+		return
+	string key = CAT_Settings_KeyFor( slider )
+	if ( key == "" )
+		return
+	int value = CAT_ClampSetting( key, int( Hud_SliderControl_GetCurrentValue( slider ) + 0.5 ) )
+	if ( value == CAT_UI_GetSetting( key ) )
+		return
+	CAT_UI_SetSettingLive( key, value )
+	CAT_Settings_SyncEntry( key, value )
+}
+
+// Applied while typing (clamped); the box is rewritten to the clamped value
+// when it loses focus or the menu is reopened.
+void function CAT_Settings_OnEntryChanged( var entry )
+{
+	if ( file.syncing )
+		return
+	string key = CAT_Settings_KeyFor( entry )
+	if ( key == "" )
+		return
+	int parsed = CAT_UI_ParseInt( Hud_GetUTF8Text( entry ) )
+	if ( parsed < 0 )
+		return
+	int value = CAT_ClampSetting( key, parsed )
+	if ( value != CAT_UI_GetSetting( key ) )
+		CAT_UI_SetSettingLive( key, value )
+	CAT_Settings_SyncSlider( key, value )
+}
+
+void function CAT_Settings_OnEntryLoseFocus( var entry )
+{
+	string key = CAT_Settings_KeyFor( entry )
+	if ( key == "" )
+		return
+	CAT_Settings_SyncEntry( key, CAT_UI_GetSetting( key ) )
+}
+
+void function CAT_Settings_OnResetClick( var button )
+{
+	foreach ( string key in CAT_SettingKeys() )
+		CAT_UI_SetSettingLive( key, CAT_DefaultSetting( key ) )
+	CAT_UI_FlushSettings()
+	EmitUISound( "UI_Menu_Accept" )
+	CAT_UI_RefreshSettingsMenu()
+}
+
+// Like the original: back from settings returns to the challenges menu.
+void function CAT_Settings_OnNavigateBack()
+{
+	CAT_UI_FlushSettings()
+	CAT_UI_ShowMain()
+}
+
+// ---- results ----
+
+void function CAT_InitResultsMenu( var menu )
+{
+	AddMenuEventHandler( menu, eUIEvent.MENU_NAVIGATE_BACK, CAT_Results_OnNavigateBack )
+	Hud_AddEventHandler( Hud_GetChild( menu, "RestartButton" ), UIE_CLICK, CAT_Results_OnRestartClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "MainMenuButton" ), UIE_CLICK, CAT_Results_OnMainMenuClick )
+}
+
+array<string> function CAT_UI_ResultLines()
+{
+	CATResultsData r = file.results
+	string accuracy = format( "%.1f", r.accuracy * 100.0 ) + "%"
+	array<string> lines
+	lines.append( "Hits: " + r.hits.tostring() + " / " + r.totalShots.tostring() + " shots" )
+	lines.append( "Dummies killed: " + r.kills.tostring() )
+	lines.append( "Accuracy: " + accuracy )
+	lines.append( "Damage dealt: " + r.damage.tostring() )
+	lines.append( "Critical shots: " + r.crits.tostring() )
+	lines.append( "Session best: " + r.best.tostring() + " hits" )
+	return lines
+}
+
+// Port of UpdateResultsData (ui/FRChallenges/menu_frchallenges.nut).
+void function CAT_UI_RefreshResultsMenu()
+{
+	var menu = file.resultsMenu
+	CATResultsData r = file.results
+	string hits = r.hits.tostring()
+
+	Hud_SetText( Hud_GetChild( menu, "Title" ), CAT_UI_DrillName( r.drillId ) )
+	Hud_SetText( Hud_GetChild( menu, "DummiesKilledResult" ), r.kills.tostring() )
+	Hud_SetText( Hud_GetChild( menu, "AccuracyResult" ), format( "%.1f", r.accuracy * 100.0 ) + "%" )
+	Hud_SetText( Hud_GetChild( menu, "ShotsHitResult" ), hits + " / " + r.totalShots.tostring() )
+	Hud_SetText( Hud_GetChild( menu, "DamageDoneResult" ), r.damage.tostring() )
+	Hud_SetText( Hud_GetChild( menu, "CriticalShotsResult" ), r.crits.tostring() )
+	Hud_SetText( Hud_GetChild( menu, "PersonalBestData" ), "THIS SESSION BEST:  " + r.best.tostring() )
+
+	// Green set for a new best, red set otherwise (as the original).
+	Hud_SetText( Hud_GetChild( menu, "WasNewPersonalBest" ), r.isNewBest ? "NEW BEST SCORE" : "" )
+	Hud_SetText( Hud_GetChild( menu, "WasNotNewPersonalBest" ), r.isNewBest ? "" : "TRY AGAIN!" )
+	Hud_SetText( Hud_GetChild( menu, "ShotsHitResultFinal" ), r.isNewBest ? hits : "" )
+	Hud_SetText( Hud_GetChild( menu, "ShotsHitResultFinal2" ), r.isNewBest ? "Hits" : "" )
+	Hud_SetText( Hud_GetChild( menu, "ShotsHitResultFinalWasNotNew" ), r.isNewBest ? "" : hits )
+	Hud_SetText( Hud_GetChild( menu, "ShotsHitResultFinal2WasNotNew" ), r.isNewBest ? "" : "Hits" )
+}
+
+void function CAT_Results_OnRestartClick( var button )
+{
+	CAT_UI_ResultsRestart()
+}
+
+void function CAT_Results_OnMainMenuClick( var button )
+{
+	CAT_UI_ResultsToMain()
+}
+
+void function CAT_Results_OnNavigateBack()
+{
+	CAT_UI_ResultsToMain()
+}
+
+// ==========================================================================
+// FALLBACK: DevMenu pages (ui/menu_dev.nut), same idiom as
+// ui/menu_freeroam_weapons.nut
+// ==========================================================================
+
+void function CAT_FB_Open( void functionref() page )
+{
+	CloseAllMenus()
+	AdvanceMenu( GetMenu( "DevMenu" ) )
+	thread CAT_FB_Open_Thread( page )
+}
+
+// DevMenu's MENU_OPEN builds its default page first; switch afterwards.
+void function CAT_FB_Open_Thread( void functionref() page )
+{
+	WaitFrame()
+	WaitFrame()
+	if ( GetActiveMenu() != GetMenu( "DevMenu" ) )
+		return
+	ChangeToThisMenu( page )
+}
+
+void function CAT_FB_Goto( void functionref() page )
+{
+	thread ChangeToThisMenu( page )
+}
+
+void function CAT_FB_Noop( var unused )
+{
+}
+
+void function CAT_FB_MainPage()
+{
+	foreach ( CATDrillDef d in CAT_UI_EnabledDrills() )
+	{
+		int drillId = d.id
+		SetupDevFunc( "Start: " + CAT_UI_DrillLabel( d ), void function( var unused ) : ( drillId )
+		{
+			CAT_UI_StartDrill( drillId )
+		} )
+	}
+
+	SetupDevMenu( "Settings", void function( var unused )
+	{
+		CAT_FB_Goto( CAT_FB_SettingsPage )
+	} )
+	SetupDevMenu( "Weapon", void function( var unused )
+	{
+		CAT_FB_Goto( CAT_FB_WeaponPage )
+	} )
+	SetupDevFunc( CAT_UI_LoadoutText(), CAT_FB_Noop )
+	SetupDevFunc( "Dummies killed this session: " + file.sessionKills.tostring(), CAT_FB_Noop )
+	SetupDevFunc( "Close menu (hold Reload to reopen)", void function( var unused )
+	{
+		CAT_UI_LeaveMain()
+	} )
+}
+
+void function CAT_FB_SettingsPage()
+{
+	SetupDevFunc( "<< Back to Aim Trainer", void function( var unused )
+	{
+		CAT_UI_ShowMain()
+	} )
+
+	foreach ( string key in CAT_SettingKeys() )
+	{
+		string k = key
+		SetupDevFunc( CAT_UI_SettingLabel( k, CAT_UI_GetSetting( k ) ), void function( var unused ) : ( k )
+		{
+			CAT_UI_CycleSetting( k )
+			CAT_FB_Goto( CAT_FB_SettingsPage )
+		} )
+	}
+
+	SetupDevFunc( "Reset to defaults", void function( var unused )
+	{
+		CAT_UI_ResetSettings()
+		CAT_FB_Goto( CAT_FB_SettingsPage )
+	} )
+}
+
+void function CAT_FB_WeaponPage()
+{
+	CAT_FB_WeaponPageAt( 0 )
+}
+
+void function CAT_FB_WeaponPageAt( int start )
+{
+	SetupDevFunc( "<< Back to Aim Trainer", void function( var unused )
+	{
+		CAT_UI_ShowMain()
+	} )
+
+	string slotLabel = file.weaponSlot == 1 ? "Slot: Primary 2 (click to switch)" : "Slot: Primary 1 (click to switch)"
+	SetupDevFunc( slotLabel, void function( var unused ) : ( start )
+	{
+		file.weaponSlot = file.weaponSlot == 1 ? 0 : 1
+		CAT_FB_Goto( void function() : ( start ) { CAT_FB_WeaponPageAt( start ) } )
+	} )
+
+	string opticName = file.optic == "" ? "None" : CAT_UI_WeaponName( file.optic )
+	SetupDevMenu( "Optic: " + opticName, void function( var unused )
+	{
+		CAT_FB_Goto( CAT_FB_OpticPage )
+	} )
+
+	array<CATWeaponEntry> weapons = CAT_UI_GetWeapons()
+	if ( weapons.len() == 0 )
+	{
+		SetupDevFunc( "(no weapons found in the loot table)", CAT_FB_Noop )
+		return
+	}
+
+	int stop = minint( weapons.len(), start + CAT_FB_WEAPONS_PER_PAGE )
+	for ( int i = start; i < stop; i++ )
+	{
+		string ref = weapons[i].ref
+		SetupDevFunc( weapons[i].name, void function( var unused ) : ( ref )
+		{
+			CAT_UI_GiveWeapon( ref )
+			CAT_UI_ShowMain()
+		} )
+	}
+
+	if ( stop < weapons.len() )
+	{
+		SetupDevMenu( "More weapons", void function( var unused ) : ( stop )
+		{
+			CAT_FB_Goto( void function() : ( stop ) { CAT_FB_WeaponPageAt( stop ) } )
+		} )
+	}
+}
+
+void function CAT_FB_OpticPage()
+{
+	SetupDevFunc( ( file.optic == "" ? "> " : "" ) + "None", void function( var unused )
+	{
+		file.optic = ""
+		CAT_FB_Goto( CAT_FB_WeaponPage )
+	} )
+
+	foreach ( CATWeaponEntry e in CAT_UI_GetOptics() )
+	{
+		string ref = e.ref
+		SetupDevFunc( ( file.optic == ref ? "> " : "" ) + e.name, void function( var unused ) : ( ref )
+		{
+			file.optic = ref
+			CAT_FB_Goto( CAT_FB_WeaponPage )
+		} )
+	}
+}
+
+void function CAT_FB_ResultsPage()
+{
+	CATResultsData r = file.results
+	SetupDevFunc( "Results: " + CAT_UI_DrillName( r.drillId ) + ( r.isNewBest ? "  -  NEW BEST!" : "" ), CAT_FB_Noop )
+	foreach ( string line in CAT_UI_ResultLines() )
+		SetupDevFunc( line, CAT_FB_Noop )
+
+	SetupDevFunc( "Restart", void function( var unused )
+	{
+		CAT_UI_ResultsRestart()
+	} )
+	SetupDevFunc( "Main menu", void function( var unused )
+	{
+		CAT_UI_ResultsToMain()
+	} )
+}
