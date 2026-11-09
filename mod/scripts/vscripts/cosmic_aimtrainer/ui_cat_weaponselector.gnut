@@ -699,7 +699,7 @@ var function CAT_WS_CreateMenu()
 
 	array<string> required = [ "ScreenBlur", "BackButton0", "SlotButton0", "SlotButton1", "TabButton0", "TabButton3",
 		"CatButton0", "CatButton4", "ItemButton0", "ItemButton14", "ItemIcon14", "BoxTitle", "BoxImage", "BoxSummary4",
-		"Status", "BuyMenu0", "BuyMenu3" ]
+		"Status", "CAT_WS_BuyMenu0", "CAT_WS_BuyMenu3" ]
 	if ( !CAT_WS_HasChildren( menu, required ) )
 	{
 		printt( CAT_LOG, "weapon selector: menu file incomplete or not found" )

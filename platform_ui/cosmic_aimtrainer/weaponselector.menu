@@ -2163,7 +2163,7 @@ resource/ui/menus/cosmic_aimtrainer/weaponselector.menu
 			fgcolor_override	"200 200 200 255"
 		}
 
-		BuyMenu0
+		CAT_WS_BuyMenu0
 		{
 			ControlName				CNestedPanel
 			xpos					120
@@ -2176,7 +2176,7 @@ resource/ui/menus/cosmic_aimtrainer/weaponselector.menu
 			controlSettingsFile		"resource/ui/menus/cosmic_aimtrainer/panels/buymenu.res"
 		}
 
-		BuyMenu1
+		CAT_WS_BuyMenu1
 		{
 			ControlName				CNestedPanel
 			xpos					120
@@ -2189,7 +2189,7 @@ resource/ui/menus/cosmic_aimtrainer/weaponselector.menu
 			controlSettingsFile		"resource/ui/menus/cosmic_aimtrainer/panels/buymenu.res"
 		}
 
-		BuyMenu2
+		CAT_WS_BuyMenu2
 		{
 			ControlName				CNestedPanel
 			xpos					120
@@ -2202,7 +2202,7 @@ resource/ui/menus/cosmic_aimtrainer/weaponselector.menu
 			controlSettingsFile		"resource/ui/menus/cosmic_aimtrainer/panels/buymenu.res"
 		}
 
-		BuyMenu3
+		CAT_WS_BuyMenu3
 		{
 			ControlName				CNestedPanel
 			xpos					120
