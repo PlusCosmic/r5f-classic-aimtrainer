@@ -435,5 +435,91 @@ resource/ui/menus/cosmic_aimtrainer/results.menu
 			pin_corner_to_sibling	BOTTOM
 			pin_to_sibling_corner	BOTTOM
 		}
+		// Playlist strip (hidden unless a playlist is running).
+		PlaylistFrame
+		{
+			ControlName	ImagePanel
+			xpos	576
+			ypos	560
+			wide	768
+			tall	140
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 220"
+			drawColor	"30 30 30 220"
+		}
+
+		PlaylistInfo
+		{
+			ControlName	Label
+			xpos	596
+			ypos	570
+			wide	728
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	DefaultBold_41
+			fontHeight	28
+			textAlignment	center
+			fgcolor_override	"252 198 3 255"
+		}
+
+		PlaylistNext
+		{
+			ControlName	Label
+			xpos	596
+			ypos	608
+			wide	728
+			tall	32
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	24
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		NextNowButton
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	760
+			ypos	650
+			wide	190
+			tall	38
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"NEXT NOW"
+			}
+		}
+
+		StopPlaylistButton
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	970
+			ypos	650
+			wide	190
+			tall	38
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"STOP PLAYLIST"
+			}
+		}
 	}
 }

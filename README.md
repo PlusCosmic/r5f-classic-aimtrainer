@@ -11,7 +11,7 @@ Firing Range (Classic); drills and menus are being tested.
 | Path | What |
 |---|---|
 | `mod/` | The mod exactly as it goes into `<game>/mods/Cosmic-AimTrainer/` |
-| `mod/mod.vdf` | Mod manifest + client settings ConVars (`cosmic_aimtrainer_*`) |
+| `mod/mod.vdf` | Mod manifest + client settings / storage ConVars (`cosmic_aimtrainer_*`) |
 | `mod/playlists_r5_patch.txt` | Adds the `cosmic_aimtrainer` playlist |
 | `mod/scripts/vscripts/cosmic_aimtrainer/` | Scripts. `sh_` shared, `sv_` server, `cl_` client, `ui_` UI |
 | `platform_ui/cosmic_aimtrainer/` | Menu layouts, copied to `<game>/platform/resource/ui/menus/cosmic_aimtrainer/` |
@@ -83,6 +83,30 @@ A local, git-ignored copy in `reference/` is handy for diffing.
   original's "Export to .txt" is not ported: `DevTextBufferDumpToFile`
   returns false and writes nothing on this build (client and dedicated
   server, checked 2026-11-13).
+- **Saved loadouts, presets, playlists** (`ui_cat_storage.gnut`): stored in
+  archived string ConVars (see below), so they survive restarts.
+  - *Loadouts* (6): the weapon selector's bottom bar saves the current
+    loadout (same name = overwrite, else first free slot), equips (both
+    slots) or deletes (click X twice). The main menu shows them as quick
+    buttons under "Current weapon". Every weapon given through the selector
+    (or a loadout) is also stored as the *last used* loadout, which is given
+    again on the first main menu of every match. An empty secondary leaves
+    the current secondary alone.
+  - *Presets* (12, ROUTINES tab): a drill + all settings + optionally a saved
+    loadout. Run writes the settings ConVars (the SETTINGS tab shows them),
+    then sends changed `set`s, `weapon`s and `start <id>`.
+  - *Playlists* (6, ROUTINES tab): up to 20 preset steps, repeated 1-20
+    times. The UI drives it: each results screen shows the step and
+    auto-continues after 5 s (NEXT NOW / STOP PLAYLIST; RESTART reruns the
+    step), the last one leads to a per-step summary. Opening the main menu
+    (MAIN MENU, Esc on results) stops the playlist.
+  - Commands the UI sends for these go out one per 0.1 s
+    (`sv_quota_stringCmdsPerSecond`). A `start` sent from the results
+    screen makes the server end the results first (it sends the main menu,
+    which the UI ignores while a start is pending).
+  - DevMenu fallback: loadouts save/equip/delete, presets run/delete/new
+    from current settings, playlists run/delete, results next/stop, summary.
+    Editing presets and making playlists need the custom ROUTINES menu.
 - **Menu camera**: while the idle menu is open the client flies a menu camera
   (`CAT_CL_MenuCamera_Thread`) over per-map spots in `CAT_CL_GetCameraSpots`,
   or orbits the player on other maps. It stops on challenge start, results
@@ -91,6 +115,25 @@ A local, git-ignored copy in `reference/` is handy for diffing.
   Firing Range (Classic) has verified positions; S21 map versions use the
   old R5R coordinates (unverified) or fall back to the spawn point. With
   `sv_cheats 1`, `cmd cosmic_aimtrainer pos` prints a position to add.
+
+## Storage format
+
+One item per ARCHIVE string ConVar in `mod.vdf` (`"Values" { "default" "-" }`,
+no min/max; `-` = empty slot), written by the UI with `SetConVarString` and
+saved to `<Saved Games>\Respawn\Apex_r5f\local\settings.cfg`. Values are at
+most 240 chars of `[A-Za-z0-9 _.,:|+=~-]` (the SDK refuses quotes and line
+breaks; `;` would split a config line). Names are cut to `[A-Za-z0-9 _-]`,
+24 chars. A weapon is `weaponRef:mod1+mod2+...`.
+
+| ConVar | Value |
+|---|---|
+| `cosmic_aimtrainer_lo0p`..`lo5p` | `Name\|weapon` (loadout name + primary) |
+| `cosmic_aimtrainer_lo0s`..`lo5s` | `weapon` or `-` (secondary) |
+| `cosmic_aimtrainer_lastp` / `_lasts` | last used primary / secondary |
+| `cosmic_aimtrainer_pr0`..`pr11` | `Name\|drillId\|duration\|infinite\|shield\|speed\|distance\|health\|color\|immortal\|reloadhit\|reloadkill\|loadoutSlot` (0 = keep current weapons, 1-6) |
+| `cosmic_aimtrainer_pl0`..`pl5` | `Name\|repeats\|presetIdx,presetIdx,...` (0-based, up to 20) |
+
+Deleting a preset leaves playlist steps pointing at it; they are skipped.
 
 ## Not ported yet
 

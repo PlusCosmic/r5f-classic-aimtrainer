@@ -91,5 +91,200 @@
 			"flags"		"ARCHIVE"
 			"Values" { "default" "0" "min" "0" "max" "1" }
 		}
+
+		// Saved loadouts, presets and playlists (ui_cat_storage.gnut). String
+		// values; no min/max. "-" = empty slot.
+		"cosmic_aimtrainer_lo0p"
+		{
+			"helpText"	"Aim trainer: saved loadout 1, name and primary (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_lo0s"
+		{
+			"helpText"	"Aim trainer: saved loadout 1, secondary (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_lo1p"
+		{
+			"helpText"	"Aim trainer: saved loadout 2, name and primary (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_lo1s"
+		{
+			"helpText"	"Aim trainer: saved loadout 2, secondary (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_lo2p"
+		{
+			"helpText"	"Aim trainer: saved loadout 3, name and primary (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_lo2s"
+		{
+			"helpText"	"Aim trainer: saved loadout 3, secondary (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_lo3p"
+		{
+			"helpText"	"Aim trainer: saved loadout 4, name and primary (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_lo3s"
+		{
+			"helpText"	"Aim trainer: saved loadout 4, secondary (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_lo4p"
+		{
+			"helpText"	"Aim trainer: saved loadout 5, name and primary (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_lo4s"
+		{
+			"helpText"	"Aim trainer: saved loadout 5, secondary (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_lo5p"
+		{
+			"helpText"	"Aim trainer: saved loadout 6, name and primary (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_lo5s"
+		{
+			"helpText"	"Aim trainer: saved loadout 6, secondary (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_lastp"
+		{
+			"helpText"	"Aim trainer: last used primary (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_lasts"
+		{
+			"helpText"	"Aim trainer: last used secondary (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pr0"
+		{
+			"helpText"	"Aim trainer: saved preset 1 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pr1"
+		{
+			"helpText"	"Aim trainer: saved preset 2 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pr2"
+		{
+			"helpText"	"Aim trainer: saved preset 3 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pr3"
+		{
+			"helpText"	"Aim trainer: saved preset 4 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pr4"
+		{
+			"helpText"	"Aim trainer: saved preset 5 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pr5"
+		{
+			"helpText"	"Aim trainer: saved preset 6 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pr6"
+		{
+			"helpText"	"Aim trainer: saved preset 7 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pr7"
+		{
+			"helpText"	"Aim trainer: saved preset 8 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pr8"
+		{
+			"helpText"	"Aim trainer: saved preset 9 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pr9"
+		{
+			"helpText"	"Aim trainer: saved preset 10 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pr10"
+		{
+			"helpText"	"Aim trainer: saved preset 11 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pr11"
+		{
+			"helpText"	"Aim trainer: saved preset 12 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pl0"
+		{
+			"helpText"	"Aim trainer: saved playlist 1 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pl1"
+		{
+			"helpText"	"Aim trainer: saved playlist 2 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pl2"
+		{
+			"helpText"	"Aim trainer: saved playlist 3 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pl3"
+		{
+			"helpText"	"Aim trainer: saved playlist 4 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pl4"
+		{
+			"helpText"	"Aim trainer: saved playlist 5 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
+		"cosmic_aimtrainer_pl5"
+		{
+			"helpText"	"Aim trainer: saved playlist 6 (managed by the menus)"
+			"flags"		"ARCHIVE"
+			"Values" { "default" "-" }
+		}
 	}
 }

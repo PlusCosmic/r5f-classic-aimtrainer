@@ -1,0 +1,507 @@
+// Cosmic Aim Trainer -- persistent storage (UI VM).
+//
+// Saved loadouts, presets ("routines") and playlists live in ARCHIVE string
+// ConVars declared in mod.vdf, one item per ConVar, so they end up in
+// <Saved Games>\Respawn\Apex_r5f\local\settings.cfg and survive restarts.
+// (DevTextBufferDumpToFile writes nothing on this build, so no files.)
+//
+// Value rules:
+//   - at most CAT_ST_MAX_VALUE characters (Source config lines are short)
+//   - only [A-Za-z0-9 _.,:|+=~-]: the SDK refuses SetConVarString values with a
+//     quote or line break, and ';' would split a config line
+//   - CAT_ST_EMPTY ("-") is an empty slot (also the mod.vdf default)
+//   - user names are cut down to [A-Za-z0-9 _-], at most CAT_ST_NAME_MAX chars
+//
+// Formats ('|' separates fields; a weapon is "weaponRef:mod1+mod2+..."):
+//   cosmic_aimtrainer_lo<0-5>p   "Name|weapon"      loadout name + primary
+//   cosmic_aimtrainer_lo<0-5>s   "weapon" or "-"    loadout secondary
+//   cosmic_aimtrainer_lastp      "weapon" or "-"    last loadout given in game
+//   cosmic_aimtrainer_lasts      "weapon" or "-"
+//   cosmic_aimtrainer_pr<0-11>   "Name|drillId|duration|infinite|shield|speed|distance|health|color|immortal|reloadhit|reloadkill|loadoutSlot"
+//                                loadoutSlot 0 = keep the current weapons, 1-6 = saved loadout
+//   cosmic_aimtrainer_pl<0-5>    "Name|repeats|presetIdx,presetIdx,..."   (presetIdx 0-based, up to 20 steps)
+//
+// Settings in a preset are in CAT_SettingKeys() order (sh_cat_core.gnut).
+
+global function CAT_ST_SanitizeName
+global function CAT_ST_EncodeWeapon
+global function CAT_ST_DecodeWeapon
+
+global function CAT_ST_GetLoadout
+global function CAT_ST_SaveLoadout
+global function CAT_ST_DeleteLoadout
+global function CAT_ST_FindLoadoutByName
+global function CAT_ST_FirstFreeLoadout
+global function CAT_ST_GetLastUsed
+global function CAT_ST_SetLastUsed
+global function CAT_ST_SetLastUsedSlot
+
+global function CAT_ST_GetPreset
+global function CAT_ST_SavePreset
+global function CAT_ST_DeletePreset
+global function CAT_ST_FirstFreePreset
+
+global function CAT_ST_GetPlaylist
+global function CAT_ST_SavePlaylist
+global function CAT_ST_DeletePlaylist
+global function CAT_ST_FirstFreePlaylist
+
+global const int CAT_ST_LOADOUTS = 6
+global const int CAT_ST_PRESETS = 12
+global const int CAT_ST_PLAYLISTS = 6
+global const int CAT_ST_MAX_STEPS = 20
+global const int CAT_ST_MAX_REPEATS = 20
+global const int CAT_ST_NAME_MAX = 24
+
+const int CAT_ST_MAX_VALUE = 240
+const string CAT_ST_EMPTY = "-"
+const string CAT_ST_PREFIX = "cosmic_aimtrainer_"
+const string CAT_ST_NAME_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 _-"
+const string CAT_ST_VALUE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 _.,:|+=~-"
+
+global struct CATLoadout
+{
+	bool used = false
+	string name
+	array<string> primary      // [ weaponRef, mod, mod... ]; empty = none
+	array<string> secondary
+}
+
+global struct CATPreset
+{
+	bool used = false
+	string name
+	int drillId = 0
+	array<int> values          // CAT_SettingKeys() order
+	int loadoutSlot = 0        // 0 = keep current weapons, 1..CAT_ST_LOADOUTS
+}
+
+global struct CATPlaylist
+{
+	bool used = false
+	string name
+	int repeats = 1
+	array<int> steps           // preset indices, 0-based
+}
+
+// --------------------------------------------------------------------------
+// Low level
+
+string function CAT_ST_Read( string cvar )
+{
+	string value = ""
+	try
+	{
+		value = GetConVarString( cvar )
+	}
+	catch ( errRead )
+	{
+		printt( CAT_LOG, "storage: cannot read", cvar, "- is it declared in mod.vdf?", errRead )
+		value = ""
+	}
+	return value
+}
+
+bool function CAT_ST_HasOnly( string text, string allowed )
+{
+	for ( int i = 0; i < text.len(); i++ )
+	{
+		if ( allowed.find( text.slice( i, i + 1 ) ) == -1 )
+			return false
+	}
+	return true
+}
+
+bool function CAT_ST_Write( string cvar, string value )
+{
+	if ( value == "" )
+		value = CAT_ST_EMPTY
+	if ( value.len() > CAT_ST_MAX_VALUE )
+	{
+		printt( CAT_LOG, "storage: value too long for", cvar, value.len() )
+		return false
+	}
+	if ( !CAT_ST_HasOnly( value, CAT_ST_VALUE_CHARS ) )
+	{
+		printt( CAT_LOG, "storage: refused characters for", cvar, value )
+		return false
+	}
+	try
+	{
+		SetConVarString( cvar, value )
+	}
+	catch ( errWrite )
+	{
+		printt( CAT_LOG, "storage: cannot write", cvar, "- is it declared in mod.vdf?", errWrite )
+		return false
+	}
+	bool kept = CAT_ST_Read( cvar ) == value
+	if ( !kept )
+		printt( CAT_LOG, "storage: write was not kept", cvar )
+	return kept
+}
+
+// Split that keeps empty fields (stdlib split() skips them on some builds).
+array<string> function CAT_ST_Split( string text, string sep )
+{
+	array<string> parts
+	int start = 0
+	while ( true )
+	{
+		int at = text.find( sep, start )
+		if ( at < 0 )
+		{
+			parts.append( text.slice( start ) )
+			break
+		}
+		parts.append( text.slice( start, at ) )
+		start = at + sep.len()
+	}
+	return parts
+}
+
+string function CAT_ST_Join( array<string> parts, string sep )
+{
+	string result = ""
+	for ( int i = 0; i < parts.len(); i++ )
+	{
+		if ( i > 0 )
+			result += sep
+		result += parts[i]
+	}
+	return result
+}
+
+// Digits only; fallback when empty / not a number.
+int function CAT_ST_ParseInt( string text, int fallback )
+{
+	if ( text == "" || text.len() > 6 )
+		return fallback
+	int value = 0
+	for ( int i = 0; i < text.len(); i++ )
+	{
+		string c = text.slice( i, i + 1 )
+		if ( c < "0" || c > "9" )
+			return fallback
+		value = value * 10 + CAT_ST_Digit( c )
+	}
+	return value
+}
+
+int function CAT_ST_Digit( string c )
+{
+	string digits = "0123456789"
+	return digits.find( c )
+}
+
+string function CAT_ST_Trim( string text )
+{
+	int start = 0
+	int stop = text.len()
+	while ( start < stop && text.slice( start, start + 1 ) == " " )
+		start++
+	while ( stop > start && text.slice( stop - 1, stop ) == " " )
+		stop--
+	return text.slice( start, stop )
+}
+
+// Keeps [A-Za-z0-9 _-], trims, at most CAT_ST_NAME_MAX chars; fallback if empty.
+string function CAT_ST_SanitizeName( string text, string fallback )
+{
+	string kept = ""
+	for ( int i = 0; i < text.len(); i++ )
+	{
+		string c = text.slice( i, i + 1 )
+		if ( CAT_ST_HasOnly( c, CAT_ST_NAME_CHARS ) )
+			kept += c
+	}
+	kept = CAT_ST_Trim( kept )
+	if ( kept.len() > CAT_ST_NAME_MAX )
+		kept = CAT_ST_Trim( kept.slice( 0, CAT_ST_NAME_MAX ) )
+	if ( kept == "" )
+		return fallback
+	return kept
+}
+
+bool function CAT_ST_IsRef( string ref )
+{
+	return ref != "" && CAT_ST_HasOnly( ref, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_" )
+}
+
+// spec = [ weaponRef, mod, mod... ] -> "weaponRef:mod+mod"; "" for an empty spec.
+string function CAT_ST_EncodeWeapon( array<string> spec )
+{
+	if ( spec.len() == 0 || !CAT_ST_IsRef( spec[0] ) )
+		return ""
+	array<string> mods
+	for ( int i = 1; i < spec.len(); i++ )
+	{
+		if ( CAT_ST_IsRef( spec[i] ) )
+			mods.append( spec[i] )
+	}
+	if ( mods.len() == 0 )
+		return spec[0]
+	return spec[0] + ":" + CAT_ST_Join( mods, "+" )
+}
+
+array<string> function CAT_ST_DecodeWeapon( string text )
+{
+	array<string> spec
+	if ( text == "" || text == CAT_ST_EMPTY )
+		return spec
+	array<string> halves = CAT_ST_Split( text, ":" )
+	if ( !CAT_ST_IsRef( halves[0] ) )
+		return spec
+	spec.append( halves[0] )
+	if ( halves.len() > 1 && halves[1] != "" )
+	{
+		foreach ( string mod in CAT_ST_Split( halves[1], "+" ) )
+		{
+			if ( CAT_ST_IsRef( mod ) )
+				spec.append( mod )
+		}
+	}
+	return spec
+}
+
+// Drops mods from the end until "prefix + weapon" fits.
+string function CAT_ST_FitWeapon( string prefix, array<string> spec )
+{
+	array<string> trimmed = clone spec
+	string encoded = CAT_ST_EncodeWeapon( trimmed )
+	while ( ( prefix + encoded ).len() > CAT_ST_MAX_VALUE && trimmed.len() > 1 )
+	{
+		trimmed.remove( trimmed.len() - 1 )
+		encoded = CAT_ST_EncodeWeapon( trimmed )
+	}
+	return encoded
+}
+
+// --------------------------------------------------------------------------
+// Loadouts
+
+string function CAT_ST_LoadoutCvar( int slot, string part )
+{
+	return CAT_ST_PREFIX + "lo" + slot.tostring() + part
+}
+
+CATLoadout function CAT_ST_GetLoadout( int slot )
+{
+	CATLoadout lo
+	if ( slot < 0 || slot >= CAT_ST_LOADOUTS )
+		return lo
+	string head = CAT_ST_Read( CAT_ST_LoadoutCvar( slot, "p" ) )
+	int bar = head.find( "|" )
+	if ( bar < 0 )
+		return lo
+	lo.name = CAT_ST_SanitizeName( head.slice( 0, bar ), "Loadout " + ( slot + 1 ).tostring() )
+	lo.primary = CAT_ST_DecodeWeapon( head.slice( bar + 1 ) )
+	lo.secondary = CAT_ST_DecodeWeapon( CAT_ST_Read( CAT_ST_LoadoutCvar( slot, "s" ) ) )
+	lo.used = lo.primary.len() > 0 || lo.secondary.len() > 0
+	return lo
+}
+
+bool function CAT_ST_SaveLoadout( int slot, string name, array<string> primary, array<string> secondary )
+{
+	if ( slot < 0 || slot >= CAT_ST_LOADOUTS )
+		return false
+	if ( primary.len() == 0 && secondary.len() == 0 )
+		return false
+	string prefix = CAT_ST_SanitizeName( name, "Loadout " + ( slot + 1 ).tostring() ) + "|"
+	bool ok = CAT_ST_Write( CAT_ST_LoadoutCvar( slot, "p" ), prefix + CAT_ST_FitWeapon( prefix, primary ) )
+	ok = CAT_ST_Write( CAT_ST_LoadoutCvar( slot, "s" ), CAT_ST_FitWeapon( "", secondary ) ) && ok
+	return ok
+}
+
+void function CAT_ST_DeleteLoadout( int slot )
+{
+	if ( slot < 0 || slot >= CAT_ST_LOADOUTS )
+		return
+	CAT_ST_Write( CAT_ST_LoadoutCvar( slot, "p" ), CAT_ST_EMPTY )
+	CAT_ST_Write( CAT_ST_LoadoutCvar( slot, "s" ), CAT_ST_EMPTY )
+}
+
+int function CAT_ST_FindLoadoutByName( string name )
+{
+	string wanted = CAT_ST_SanitizeName( name, "" ).tolower()
+	if ( wanted == "" )
+		return -1
+	for ( int i = 0; i < CAT_ST_LOADOUTS; i++ )
+	{
+		CATLoadout lo = CAT_ST_GetLoadout( i )
+		if ( lo.used && lo.name.tolower() == wanted )
+			return i
+	}
+	return -1
+}
+
+int function CAT_ST_FirstFreeLoadout()
+{
+	for ( int i = 0; i < CAT_ST_LOADOUTS; i++ )
+	{
+		CATLoadout lo = CAT_ST_GetLoadout( i )
+		if ( !lo.used )
+			return i
+	}
+	return -1
+}
+
+// The loadout last given in game (name stays empty).
+CATLoadout function CAT_ST_GetLastUsed()
+{
+	CATLoadout lo
+	lo.primary = CAT_ST_DecodeWeapon( CAT_ST_Read( CAT_ST_PREFIX + "lastp" ) )
+	lo.secondary = CAT_ST_DecodeWeapon( CAT_ST_Read( CAT_ST_PREFIX + "lasts" ) )
+	lo.used = lo.primary.len() > 0 || lo.secondary.len() > 0
+	return lo
+}
+
+void function CAT_ST_SetLastUsed( array<string> primary, array<string> secondary )
+{
+	CAT_ST_Write( CAT_ST_PREFIX + "lastp", CAT_ST_FitWeapon( "", primary ) )
+	CAT_ST_Write( CAT_ST_PREFIX + "lasts", CAT_ST_FitWeapon( "", secondary ) )
+}
+
+// One slot (0 primary, 1 secondary) of the last-used loadout.
+void function CAT_ST_SetLastUsedSlot( int slot, string weaponRef, array<string> mods )
+{
+	array<string> spec = [ weaponRef ]
+	spec.extend( mods )
+	CAT_ST_Write( CAT_ST_PREFIX + ( slot == 1 ? "lasts" : "lastp" ), CAT_ST_FitWeapon( "", spec ) )
+}
+
+// --------------------------------------------------------------------------
+// Presets
+
+CATPreset function CAT_ST_GetPreset( int index )
+{
+	CATPreset p
+	array<string> keys = CAT_SettingKeys()
+	foreach ( string key in keys )
+		p.values.append( CAT_DefaultSetting( key ) )
+	if ( index < 0 || index >= CAT_ST_PRESETS )
+		return p
+
+	string raw = CAT_ST_Read( CAT_ST_PREFIX + "pr" + index.tostring() )
+	if ( raw.find( "|" ) < 0 )
+		return p
+	array<string> fields = CAT_ST_Split( raw, "|" )
+	if ( fields.len() < 2 )
+		return p
+
+	int drillId = CAT_ST_ParseInt( fields[1], 0 )
+	if ( drillId <= 0 )
+		return p
+
+	p.used = true
+	p.name = CAT_ST_SanitizeName( fields[0], "Preset " + ( index + 1 ).tostring() )
+	p.drillId = drillId
+	for ( int i = 0; i < keys.len(); i++ )
+	{
+		if ( 2 + i < fields.len() )
+			p.values[i] = CAT_ClampSetting( keys[i], CAT_ST_ParseInt( fields[ 2 + i ], CAT_DefaultSetting( keys[i] ) ) )
+	}
+	int slotField = 2 + keys.len()
+	if ( slotField < fields.len() )
+		p.loadoutSlot = ClampInt( CAT_ST_ParseInt( fields[ slotField ], 0 ), 0, CAT_ST_LOADOUTS )
+	return p
+}
+
+bool function CAT_ST_SavePreset( int index, CATPreset p )
+{
+	if ( index < 0 || index >= CAT_ST_PRESETS || p.drillId <= 0 )
+		return false
+	array<string> keys = CAT_SettingKeys()
+	array<string> fields
+	fields.append( CAT_ST_SanitizeName( p.name, "Preset " + ( index + 1 ).tostring() ) )
+	fields.append( p.drillId.tostring() )
+	for ( int i = 0; i < keys.len(); i++ )
+	{
+		int v = i < p.values.len() ? p.values[i] : CAT_DefaultSetting( keys[i] )
+		fields.append( CAT_ClampSetting( keys[i], v ).tostring() )
+	}
+	fields.append( ClampInt( p.loadoutSlot, 0, CAT_ST_LOADOUTS ).tostring() )
+	return CAT_ST_Write( CAT_ST_PREFIX + "pr" + index.tostring(), CAT_ST_Join( fields, "|" ) )
+}
+
+void function CAT_ST_DeletePreset( int index )
+{
+	if ( index < 0 || index >= CAT_ST_PRESETS )
+		return
+	CAT_ST_Write( CAT_ST_PREFIX + "pr" + index.tostring(), CAT_ST_EMPTY )
+}
+
+int function CAT_ST_FirstFreePreset()
+{
+	for ( int i = 0; i < CAT_ST_PRESETS; i++ )
+	{
+		CATPreset p = CAT_ST_GetPreset( i )
+		if ( !p.used )
+			return i
+	}
+	return -1
+}
+
+// --------------------------------------------------------------------------
+// Playlists
+
+CATPlaylist function CAT_ST_GetPlaylist( int index )
+{
+	CATPlaylist pl
+	if ( index < 0 || index >= CAT_ST_PLAYLISTS )
+		return pl
+	string raw = CAT_ST_Read( CAT_ST_PREFIX + "pl" + index.tostring() )
+	if ( raw.find( "|" ) < 0 )
+		return pl
+	array<string> fields = CAT_ST_Split( raw, "|" )
+	if ( fields.len() < 3 )
+		return pl
+
+	pl.used = true
+	pl.name = CAT_ST_SanitizeName( fields[0], "Playlist " + ( index + 1 ).tostring() )
+	pl.repeats = ClampInt( CAT_ST_ParseInt( fields[1], 1 ), 1, CAT_ST_MAX_REPEATS )
+	if ( fields[2] != "" )
+	{
+		foreach ( string s in CAT_ST_Split( fields[2], "," ) )
+		{
+			int step = CAT_ST_ParseInt( s, -1 )
+			if ( step >= 0 && step < CAT_ST_PRESETS && pl.steps.len() < CAT_ST_MAX_STEPS )
+				pl.steps.append( step )
+		}
+	}
+	return pl
+}
+
+bool function CAT_ST_SavePlaylist( int index, CATPlaylist pl )
+{
+	if ( index < 0 || index >= CAT_ST_PLAYLISTS )
+		return false
+	array<string> steps
+	foreach ( int step in pl.steps )
+	{
+		if ( step >= 0 && step < CAT_ST_PRESETS && steps.len() < CAT_ST_MAX_STEPS )
+			steps.append( step.tostring() )
+	}
+	string value = CAT_ST_SanitizeName( pl.name, "Playlist " + ( index + 1 ).tostring() )
+	value += "|" + ClampInt( pl.repeats, 1, CAT_ST_MAX_REPEATS ).tostring()
+	value += "|" + CAT_ST_Join( steps, "," )
+	return CAT_ST_Write( CAT_ST_PREFIX + "pl" + index.tostring(), value )
+}
+
+void function CAT_ST_DeletePlaylist( int index )
+{
+	if ( index < 0 || index >= CAT_ST_PLAYLISTS )
+		return
+	CAT_ST_Write( CAT_ST_PREFIX + "pl" + index.tostring(), CAT_ST_EMPTY )
+}
+
+int function CAT_ST_FirstFreePlaylist()
+{
+	for ( int i = 0; i < CAT_ST_PLAYLISTS; i++ )
+	{
+		CATPlaylist pl = CAT_ST_GetPlaylist( i )
+		if ( !pl.used )
+			return i
+	}
+	return -1
+}

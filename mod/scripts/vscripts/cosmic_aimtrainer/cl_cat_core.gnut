@@ -36,6 +36,7 @@ global function CAT_CL_HistoryAdd
 global function CAT_CL_UI_MenuClosed
 global function CAT_CL_UI_MenuCamera
 global function CAT_CL_UI_PushSettings
+global function CAT_CL_UI_RefreshLoadout
 global function cosmic_aimtrainer__AimTrainer_CL_PushChallengeFlagToUI
 
 const string CAT_CL_SIGNAL_STOP_HUD = "CAT_CL_StopChallengeHud"
@@ -293,6 +294,14 @@ void function CAT_CL_SendLoadoutToUI_Thread()
 	if ( IsValid( w1 ) )
 		p1 = w1.GetWeaponClassName()
 	RunUIScript( "CAT_UI_SetLoadout", p0, p1 )
+}
+
+// UI gave weapons (saved / last-used loadout): report them again.
+void function CAT_CL_UI_RefreshLoadout()
+{
+	if ( !file.inited )
+		return
+	thread CAT_CL_SendLoadoutToUI_Thread()
 }
 
 void function CAT_CL_SetChallengeActive( bool active )

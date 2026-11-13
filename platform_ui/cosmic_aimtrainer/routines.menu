@@ -1,0 +1,4135 @@
+resource/ui/menus/cosmic_aimtrainer/routines.menu
+{
+	menu
+	{
+		ControlName				Frame
+		xpos					0
+		ypos					0
+		zpos					3
+		wide					f0
+		tall					f0
+		autoResize				0
+		pinCorner				0
+		visible					1
+		enabled					1
+		tabPosition				0
+		PaintBackgroundType		0
+		infocus_bgcolor_override	"0 0 0 0"
+		outoffocus_bgcolor_override	"0 0 0 0"
+		modal					1
+
+		// UpdateMenuBlur needs direct children named ScreenBlur / DarkenBackground.
+		ScreenBlur
+		{
+			ControlName	Label
+			labelText	""
+		}
+
+		DarkenBackground
+		{
+			ControlName	RuiPanel
+			xpos	0
+			ypos	0
+			wide	%50
+			tall	%100
+			visible	1
+			rui	"ui/basic_image.rpak"
+			ruiArgs
+			{
+				basicImageColor	"0 0 0"
+				basicImageAlpha	0.9
+			}
+		}
+
+		Title
+		{
+			ControlName	Label
+			xpos	960
+			ypos	30
+			wide	930
+			tall	60
+			visible	1
+			fontHeight	60
+			labelText	"FLOWSTATE AIM TRAINER"
+			font	TitleBoldFont
+			allcaps	1
+			textAlignment	east
+			fgcolor_override	"191 13 13 255"
+			zpos	5
+		}
+
+		Background
+		{
+			ControlName	ImagePanel
+			xpos	0
+			ypos	0
+			wide	%50
+			tall	85
+			visible	1
+			scaleImage	1
+			fillColor	"0 0 0 170"
+			drawColor	"0 0 0 170"
+			zpos	1
+		}
+
+		Logo
+		{
+			ControlName	RuiPanel
+			InheritProperties	Logo
+			xpos	50
+			ypos	1
+			wide	110
+			tall	132
+			zpos	4
+		}
+
+		ChallengesTab
+		{
+			ControlName	RuiButton
+			InheritProperties	TabButtonShort
+			scriptID	0
+			xpos	165
+			ypos	18
+			wide	180
+			tall	50
+			zpos	5
+			visible	1
+			enabled	1
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+		}
+
+		RoutinesTab
+		{
+			ControlName	RuiButton
+			InheritProperties	TabButtonShort
+			scriptID	3
+			xpos	350
+			ypos	18
+			wide	180
+			tall	50
+			zpos	5
+			visible	1
+			enabled	1
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+		}
+
+		HistoryTab
+		{
+			ControlName	RuiButton
+			InheritProperties	TabButtonShort
+			scriptID	2
+			xpos	535
+			ypos	18
+			wide	180
+			tall	50
+			zpos	5
+			visible	1
+			enabled	1
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+		}
+
+		SettingsTab
+		{
+			ControlName	RuiButton
+			InheritProperties	TabButtonShort
+			scriptID	1
+			xpos	720
+			ypos	18
+			wide	180
+			tall	50
+			zpos	5
+			visible	1
+			enabled	1
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+		}
+
+
+		MadeBy
+		{
+			ControlName	Label
+			xpos	1000
+			ypos	995
+			wide	880
+			tall	25
+			visible	1
+			fontHeight	25
+			labelText	"Original Aim Trainer by @CafeFPS  |  Flowstate port by pluscosmic"
+			font	DefaultBold_41
+			allcaps	0
+			textAlignment	east
+			fgcolor_override	"255 255 255 255"
+			zpos	5
+		}
+
+		MadeBy2
+		{
+			ControlName	Label
+			xpos	1000
+			ypos	1022
+			wide	880
+			tall	25
+			visible	1
+			fontHeight	25
+			labelText	"Powered by R5 Flowstate"
+			font	DefaultBold_41
+			allcaps	0
+			textAlignment	east
+			fgcolor_override	"255 255 255 255"
+			zpos	5
+		}
+
+		GameMenuButton
+		{
+			ControlName	RuiButton
+			InheritProperties	CornerButton
+			zpos	5
+			ypos	70
+			pin_to_sibling	MadeBy
+			pin_corner_to_sibling	TOP_RIGHT
+			pin_to_sibling_corner	TOP_RIGHT
+		}
+
+		PresetsTitle
+		{
+			ControlName	Label
+			xpos	40
+			ypos	140
+			wide	600
+			tall	40
+			zpos	5
+			visible	1
+			labelText	"PRESETS"
+			font	TitleBoldFont
+			fontHeight	30
+			textAlignment	west
+			fgcolor_override	"252 198 3 255"
+		}
+
+		NewPresetButton
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	740
+			ypos	142
+			wide	180
+			tall	36
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"NEW PRESET"
+			}
+		}
+
+		PresetsEmpty
+		{
+			ControlName	Label
+			xpos	52
+			ypos	185
+			wide	868
+			tall	36
+			zpos	5
+			visible	1
+			labelText	"No presets yet. Set up the SETTINGS tab, then NEW PRESET."
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"200 200 200 255"
+		}
+
+		PresetFrame0
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	185
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PresetName0
+		{
+			ControlName	Label
+			xpos	52
+			ypos	185
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PresetRun0
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	187
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PresetEdit0
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	187
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PresetDelete0
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	187
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PresetFrame1
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	225
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PresetName1
+		{
+			ControlName	Label
+			xpos	52
+			ypos	225
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PresetRun1
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	227
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	1
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PresetEdit1
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	227
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	1
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PresetDelete1
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	227
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	1
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PresetFrame2
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	265
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PresetName2
+		{
+			ControlName	Label
+			xpos	52
+			ypos	265
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PresetRun2
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	267
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	2
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PresetEdit2
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	267
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	2
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PresetDelete2
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	267
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	2
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PresetFrame3
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	305
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PresetName3
+		{
+			ControlName	Label
+			xpos	52
+			ypos	305
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PresetRun3
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	307
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	3
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PresetEdit3
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	307
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	3
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PresetDelete3
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	307
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	3
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PresetFrame4
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	345
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PresetName4
+		{
+			ControlName	Label
+			xpos	52
+			ypos	345
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PresetRun4
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	347
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	4
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PresetEdit4
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	347
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	4
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PresetDelete4
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	347
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	4
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PresetFrame5
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	385
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PresetName5
+		{
+			ControlName	Label
+			xpos	52
+			ypos	385
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PresetRun5
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	387
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	5
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PresetEdit5
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	387
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	5
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PresetDelete5
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	387
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	5
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PresetFrame6
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	425
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PresetName6
+		{
+			ControlName	Label
+			xpos	52
+			ypos	425
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PresetRun6
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	427
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	6
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PresetEdit6
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	427
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	6
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PresetDelete6
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	427
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	6
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PresetFrame7
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	465
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PresetName7
+		{
+			ControlName	Label
+			xpos	52
+			ypos	465
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PresetRun7
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	467
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	7
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PresetEdit7
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	467
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	7
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PresetDelete7
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	467
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	7
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PresetFrame8
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	505
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PresetName8
+		{
+			ControlName	Label
+			xpos	52
+			ypos	505
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PresetRun8
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	507
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	8
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PresetEdit8
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	507
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	8
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PresetDelete8
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	507
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	8
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PresetFrame9
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	545
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PresetName9
+		{
+			ControlName	Label
+			xpos	52
+			ypos	545
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PresetRun9
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	547
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	9
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PresetEdit9
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	547
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	9
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PresetDelete9
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	547
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	9
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PresetFrame10
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	585
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PresetName10
+		{
+			ControlName	Label
+			xpos	52
+			ypos	585
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PresetRun10
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	587
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	10
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PresetEdit10
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	587
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	10
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PresetDelete10
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	587
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	10
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PresetFrame11
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	625
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PresetName11
+		{
+			ControlName	Label
+			xpos	52
+			ypos	625
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PresetRun11
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	627
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	11
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PresetEdit11
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	627
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	11
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PresetDelete11
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	627
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	11
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PlaylistsTitle
+		{
+			ControlName	Label
+			xpos	40
+			ypos	675
+			wide	600
+			tall	40
+			zpos	5
+			visible	1
+			labelText	"PLAYLISTS"
+			font	TitleBoldFont
+			fontHeight	30
+			textAlignment	west
+			fgcolor_override	"252 198 3 255"
+		}
+
+		NewPlaylistButton
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	740
+			ypos	677
+			wide	180
+			tall	36
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"NEW PLAYLIST"
+			}
+		}
+
+		PlaylistsEmpty
+		{
+			ControlName	Label
+			xpos	52
+			ypos	720
+			wide	868
+			tall	36
+			zpos	5
+			visible	1
+			labelText	"No playlists yet. A playlist runs presets in order."
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"200 200 200 255"
+		}
+
+		PlaylistFrame0
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	720
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PlaylistName0
+		{
+			ControlName	Label
+			xpos	52
+			ypos	720
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PlaylistRun0
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	722
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PlaylistEdit0
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	722
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PlaylistDelete0
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	722
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PlaylistFrame1
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	760
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PlaylistName1
+		{
+			ControlName	Label
+			xpos	52
+			ypos	760
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PlaylistRun1
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	762
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	1
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PlaylistEdit1
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	762
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	1
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PlaylistDelete1
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	762
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	1
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PlaylistFrame2
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	800
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PlaylistName2
+		{
+			ControlName	Label
+			xpos	52
+			ypos	800
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PlaylistRun2
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	802
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	2
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PlaylistEdit2
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	802
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	2
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PlaylistDelete2
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	802
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	2
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PlaylistFrame3
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	840
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PlaylistName3
+		{
+			ControlName	Label
+			xpos	52
+			ypos	840
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PlaylistRun3
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	842
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	3
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PlaylistEdit3
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	842
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	3
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PlaylistDelete3
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	842
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	3
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PlaylistFrame4
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	880
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PlaylistName4
+		{
+			ControlName	Label
+			xpos	52
+			ypos	880
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PlaylistRun4
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	882
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	4
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PlaylistEdit4
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	882
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	4
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PlaylistDelete4
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	882
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	4
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		PlaylistFrame5
+		{
+			ControlName	ImagePanel
+			xpos	40
+			ypos	920
+			wide	880
+			tall	36
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"30 30 30 200"
+			drawColor	"30 30 30 200"
+		}
+
+		PlaylistName5
+		{
+			ControlName	Label
+			xpos	52
+			ypos	920
+			wide	520
+			tall	36
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		PlaylistRun5
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	580
+			ypos	922
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	5
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN"
+			}
+		}
+
+		PlaylistEdit5
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	692
+			ypos	922
+			wide	105
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	5
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"EDIT"
+			}
+		}
+
+		PlaylistDelete5
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	804
+			ypos	922
+			wide	110
+			tall	32
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	5
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"DELETE"
+			}
+		}
+
+		RoutinesStatus
+		{
+			ControlName	Label
+			xpos	40
+			ypos	960
+			wide	880
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"252 198 3 255"
+		}
+
+		EditorFrame
+		{
+			ControlName	ImagePanel
+			xpos	980
+			ypos	100
+			wide	900
+			tall	860
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"0 0 0 210"
+			drawColor	"0 0 0 210"
+			classname	"EditorAll"
+		}
+
+		EditorTitle
+		{
+			ControlName	Label
+			xpos	1000
+			ypos	110
+			wide	860
+			tall	44
+			zpos	5
+			visible	1
+			labelText	""
+			font	TitleBoldFont
+			fontHeight	30
+			textAlignment	west
+			fgcolor_override	"252 198 3 255"
+			classname	"EditorAll"
+		}
+
+		NameLabel
+		{
+			ControlName	Label
+			xpos	1000
+			ypos	165
+			wide	150
+			tall	40
+			zpos	5
+			visible	1
+			labelText	"Name"
+			font	Default_27
+			fontHeight	24
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"EditorAll"
+		}
+
+		NameEntry
+		{
+			ControlName	TextEntry
+			xpos	1160
+			ypos	165
+			wide	500
+			tall	40
+			zpos	8
+			allowRightClickMenu	0
+			allowSpecialCharacters	0
+			unicode	0
+			keyboardTitle	"Name"
+			keyboardDescription	"Name"
+			visible	1
+			enabled	1
+			textHidden	0
+			editable	1
+			maxchars	24
+			textAlignment	west
+			ruiFont	TitleRegularFont
+			ruiFontHeight	24
+			ruiMinFontHeight	16
+			bgcolor_override	"30 30 30 230"
+			classname	"EditorAll"
+		}
+
+		DrillLabel
+		{
+			ControlName	Label
+			xpos	1000
+			ypos	220
+			wide	150
+			tall	40
+			zpos	5
+			visible	1
+			labelText	"Challenge"
+			font	Default_27
+			fontHeight	24
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PresetEditor"
+		}
+
+		DrillPrev
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1160
+			ypos	222
+			wide	60
+			tall	36
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PresetEditor"
+			ruiArgs
+			{
+				buttonText	"<"
+			}
+		}
+
+		DrillValue
+		{
+			ControlName	Label
+			xpos	1225
+			ypos	220
+			wide	430
+			tall	40
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	24
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+			classname	"PresetEditor"
+		}
+
+		DrillNext
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1660
+			ypos	222
+			wide	60
+			tall	36
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PresetEditor"
+			ruiArgs
+			{
+				buttonText	">"
+			}
+		}
+
+		LoadoutLabel
+		{
+			ControlName	Label
+			xpos	1000
+			ypos	275
+			wide	150
+			tall	40
+			zpos	5
+			visible	1
+			labelText	"Loadout"
+			font	Default_27
+			fontHeight	24
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PresetEditor"
+		}
+
+		LoadoutPrev
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1160
+			ypos	277
+			wide	60
+			tall	36
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PresetEditor"
+			ruiArgs
+			{
+				buttonText	"<"
+			}
+		}
+
+		LoadoutValue
+		{
+			ControlName	Label
+			xpos	1225
+			ypos	275
+			wide	430
+			tall	40
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	24
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+			classname	"PresetEditor"
+		}
+
+		LoadoutNext
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1660
+			ypos	277
+			wide	60
+			tall	36
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PresetEditor"
+			ruiArgs
+			{
+				buttonText	">"
+			}
+		}
+
+		SettingsLabel
+		{
+			ControlName	Label
+			xpos	1000
+			ypos	330
+			wide	860
+			tall	34
+			zpos	5
+			visible	1
+			labelText	"Settings"
+			font	Default_27
+			fontHeight	24
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PresetEditor"
+		}
+
+		PresetSettings0
+		{
+			ControlName	Label
+			xpos	1020
+			ypos	368
+			wide	840
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	21
+			textAlignment	west
+			fgcolor_override	"200 200 200 255"
+			classname	"PresetEditor"
+		}
+
+		PresetSettings1
+		{
+			ControlName	Label
+			xpos	1020
+			ypos	400
+			wide	840
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	21
+			textAlignment	west
+			fgcolor_override	"200 200 200 255"
+			classname	"PresetEditor"
+		}
+
+		PresetSettings2
+		{
+			ControlName	Label
+			xpos	1020
+			ypos	432
+			wide	840
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	21
+			textAlignment	west
+			fgcolor_override	"200 200 200 255"
+			classname	"PresetEditor"
+		}
+
+		PresetSettings3
+		{
+			ControlName	Label
+			xpos	1020
+			ypos	464
+			wide	840
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	21
+			textAlignment	west
+			fgcolor_override	"200 200 200 255"
+			classname	"PresetEditor"
+		}
+
+		CaptureButton
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1000
+			ypos	505
+			wide	420
+			tall	38
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PresetEditor"
+			ruiArgs
+			{
+				buttonText	"USE CURRENT SETTINGS"
+			}
+		}
+
+		CaptureHint
+		{
+			ControlName	Label
+			xpos	1000
+			ypos	550
+			wide	860
+			tall	30
+			zpos	5
+			visible	1
+			labelText	"Copies the values from the SETTINGS tab into this preset."
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"200 200 200 255"
+			classname	"PresetEditor"
+		}
+
+		RepeatsLabel
+		{
+			ControlName	Label
+			xpos	1000
+			ypos	220
+			wide	150
+			tall	40
+			zpos	5
+			visible	1
+			labelText	"Repeat"
+			font	Default_27
+			fontHeight	24
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		RepeatsPrev
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1160
+			ypos	222
+			wide	60
+			tall	36
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"<"
+			}
+		}
+
+		RepeatsValue
+		{
+			ControlName	Label
+			xpos	1225
+			ypos	220
+			wide	430
+			tall	40
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	24
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		RepeatsNext
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1660
+			ypos	222
+			wide	60
+			tall	36
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	">"
+			}
+		}
+
+		AddLabel
+		{
+			ControlName	Label
+			xpos	1000
+			ypos	275
+			wide	150
+			tall	40
+			zpos	5
+			visible	1
+			labelText	"Add step"
+			font	Default_27
+			fontHeight	24
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		AddPrev
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1160
+			ypos	277
+			wide	60
+			tall	36
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"<"
+			}
+		}
+
+		AddValue
+		{
+			ControlName	Label
+			xpos	1225
+			ypos	275
+			wide	430
+			tall	40
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	24
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		AddNext
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1660
+			ypos	277
+			wide	60
+			tall	36
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	">"
+			}
+		}
+
+		AddButton
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1730
+			ypos	277
+			wide	130
+			tall	36
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"ADD"
+			}
+		}
+
+		StepsLabel
+		{
+			ControlName	Label
+			xpos	1000
+			ypos	330
+			wide	860
+			tall	34
+			zpos	5
+			visible	1
+			labelText	"Steps"
+			font	Default_27
+			fontHeight	24
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepText0
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	368
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp0
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	368
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown0
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	368
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove0
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	368
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText1
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	394
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp1
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	394
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	1
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown1
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	394
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	1
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove1
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	394
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	1
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText2
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	420
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp2
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	420
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	2
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown2
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	420
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	2
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove2
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	420
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	2
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText3
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	446
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp3
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	446
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	3
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown3
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	446
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	3
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove3
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	446
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	3
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText4
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	472
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp4
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	472
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	4
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown4
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	472
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	4
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove4
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	472
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	4
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText5
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	498
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp5
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	498
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	5
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown5
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	498
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	5
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove5
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	498
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	5
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText6
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	524
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp6
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	524
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	6
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown6
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	524
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	6
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove6
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	524
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	6
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText7
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	550
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp7
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	550
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	7
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown7
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	550
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	7
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove7
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	550
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	7
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText8
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	576
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp8
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	576
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	8
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown8
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	576
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	8
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove8
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	576
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	8
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText9
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	602
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp9
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	602
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	9
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown9
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	602
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	9
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove9
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	602
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	9
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText10
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	628
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp10
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	628
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	10
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown10
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	628
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	10
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove10
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	628
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	10
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText11
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	654
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp11
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	654
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	11
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown11
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	654
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	11
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove11
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	654
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	11
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText12
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	680
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp12
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	680
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	12
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown12
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	680
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	12
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove12
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	680
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	12
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText13
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	706
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp13
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	706
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	13
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown13
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	706
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	13
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove13
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	706
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	13
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText14
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	732
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp14
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	732
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	14
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown14
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	732
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	14
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove14
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	732
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	14
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText15
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	758
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp15
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	758
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	15
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown15
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	758
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	15
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove15
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	758
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	15
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText16
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	784
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp16
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	784
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	16
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown16
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	784
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	16
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove16
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	784
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	16
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText17
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	810
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp17
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	810
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	17
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown17
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	810
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	17
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove17
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	810
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	17
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText18
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	836
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp18
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	836
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	18
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown18
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	836
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	18
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove18
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	836
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	18
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		StepText19
+		{
+			ControlName	Label
+			xpos	1010
+			ypos	862
+			wide	550
+			tall	24
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+			classname	"PlaylistEditor"
+		}
+
+		StepUp19
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1570
+			ypos	862
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	19
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"UP"
+			}
+		}
+
+		StepDown19
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1665
+			ypos	862
+			wide	90
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	19
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"DOWN"
+			}
+		}
+
+		StepRemove19
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1760
+			ypos	862
+			wide	100
+			tall	24
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	19
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"PlaylistEditor"
+			ruiArgs
+			{
+				buttonText	"REMOVE"
+			}
+		}
+
+		EditorSave
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1000
+			ypos	905
+			wide	200
+			tall	40
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"EditorAll"
+			ruiArgs
+			{
+				buttonText	"SAVE"
+			}
+		}
+
+		EditorCancel
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1210
+			ypos	905
+			wide	200
+			tall	40
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			classname	"EditorAll"
+			ruiArgs
+			{
+				buttonText	"CANCEL"
+			}
+		}
+
+		EditorStatus
+		{
+			ControlName	Label
+			xpos	1420
+			ypos	905
+			wide	450
+			tall	40
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"252 198 3 255"
+			classname	"EditorAll"
+		}
+	}
+}

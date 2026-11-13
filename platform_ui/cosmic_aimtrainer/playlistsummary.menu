@@ -1,0 +1,3237 @@
+resource/ui/menus/cosmic_aimtrainer/playlistsummary.menu
+{
+	menu
+	{
+		ControlName				Frame
+		xpos					0
+		ypos					0
+		zpos					3
+		wide					f0
+		tall					f0
+		autoResize				0
+		pinCorner				0
+		visible					1
+		enabled					1
+		tabPosition				0
+		PaintBackgroundType		0
+		infocus_bgcolor_override	"0 0 0 0"
+		outoffocus_bgcolor_override	"0 0 0 0"
+		modal					1
+
+		ScreenBlur
+		{
+			ControlName	Label
+			labelText	""
+		}
+
+		SummaryFrame
+		{
+			ControlName	ImagePanel
+			xpos	330
+			ypos	60
+			wide	1260
+			tall	960
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"20 20 20 225"
+			drawColor	"20 20 20 225"
+		}
+
+		Title
+		{
+			ControlName	Label
+			xpos	350
+			ypos	75
+			wide	1220
+			tall	50
+			zpos	5
+			visible	1
+			labelText	"PLAYLIST COMPLETE"
+			font	TitleBoldFont
+			fontHeight	40
+			textAlignment	center
+			fgcolor_override	"252 198 3 255"
+		}
+
+		Subtitle
+		{
+			ControlName	Label
+			xpos	350
+			ypos	130
+			wide	1220
+			tall	34
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	26
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		HeaderFrame
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	180
+			wide	1220
+			tall	34
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"60 60 60 220"
+			drawColor	"60 60 60 220"
+		}
+
+		HeaderStep
+		{
+			ControlName	Label
+			xpos	360
+			ypos	180
+			wide	70
+			tall	34
+			zpos	5
+			visible	1
+			labelText	"STEP"
+			font	TitleBoldFont
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		HeaderPreset
+		{
+			ControlName	Label
+			xpos	430
+			ypos	180
+			wide	300
+			tall	34
+			zpos	5
+			visible	1
+			labelText	"PRESET"
+			font	TitleBoldFont
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		HeaderDrill
+		{
+			ControlName	Label
+			xpos	730
+			ypos	180
+			wide	300
+			tall	34
+			zpos	5
+			visible	1
+			labelText	"DRILL"
+			font	TitleBoldFont
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		HeaderRuns
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	180
+			wide	80
+			tall	34
+			zpos	5
+			visible	1
+			labelText	"RUNS"
+			font	TitleBoldFont
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		HeaderHits
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	180
+			wide	140
+			tall	34
+			zpos	5
+			visible	1
+			labelText	"HITS"
+			font	TitleBoldFont
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		HeaderKills
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	180
+			wide	90
+			tall	34
+			zpos	5
+			visible	1
+			labelText	"KILLS"
+			font	TitleBoldFont
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		HeaderAccuracy
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	180
+			wide	110
+			tall	34
+			zpos	5
+			visible	1
+			labelText	"ACCURACY"
+			font	TitleBoldFont
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		HeaderDamage
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	180
+			wide	120
+			tall	34
+			zpos	5
+			visible	1
+			labelText	"DAMAGE"
+			font	TitleBoldFont
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame0
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	220
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep0
+		{
+			ControlName	Label
+			xpos	360
+			ypos	220
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset0
+		{
+			ControlName	Label
+			xpos	430
+			ypos	220
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill0
+		{
+			ControlName	Label
+			xpos	730
+			ypos	220
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns0
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	220
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits0
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	220
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills0
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	220
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy0
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	220
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage0
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	220
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame1
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	254
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep1
+		{
+			ControlName	Label
+			xpos	360
+			ypos	254
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset1
+		{
+			ControlName	Label
+			xpos	430
+			ypos	254
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill1
+		{
+			ControlName	Label
+			xpos	730
+			ypos	254
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns1
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	254
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits1
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	254
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills1
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	254
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy1
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	254
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage1
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	254
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame2
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	288
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep2
+		{
+			ControlName	Label
+			xpos	360
+			ypos	288
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset2
+		{
+			ControlName	Label
+			xpos	430
+			ypos	288
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill2
+		{
+			ControlName	Label
+			xpos	730
+			ypos	288
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns2
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	288
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits2
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	288
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills2
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	288
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy2
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	288
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage2
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	288
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame3
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	322
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep3
+		{
+			ControlName	Label
+			xpos	360
+			ypos	322
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset3
+		{
+			ControlName	Label
+			xpos	430
+			ypos	322
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill3
+		{
+			ControlName	Label
+			xpos	730
+			ypos	322
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns3
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	322
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits3
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	322
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills3
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	322
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy3
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	322
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage3
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	322
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame4
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	356
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep4
+		{
+			ControlName	Label
+			xpos	360
+			ypos	356
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset4
+		{
+			ControlName	Label
+			xpos	430
+			ypos	356
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill4
+		{
+			ControlName	Label
+			xpos	730
+			ypos	356
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns4
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	356
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits4
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	356
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills4
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	356
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy4
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	356
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage4
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	356
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame5
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	390
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep5
+		{
+			ControlName	Label
+			xpos	360
+			ypos	390
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset5
+		{
+			ControlName	Label
+			xpos	430
+			ypos	390
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill5
+		{
+			ControlName	Label
+			xpos	730
+			ypos	390
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns5
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	390
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits5
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	390
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills5
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	390
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy5
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	390
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage5
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	390
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame6
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	424
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep6
+		{
+			ControlName	Label
+			xpos	360
+			ypos	424
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset6
+		{
+			ControlName	Label
+			xpos	430
+			ypos	424
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill6
+		{
+			ControlName	Label
+			xpos	730
+			ypos	424
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns6
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	424
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits6
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	424
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills6
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	424
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy6
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	424
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage6
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	424
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame7
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	458
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep7
+		{
+			ControlName	Label
+			xpos	360
+			ypos	458
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset7
+		{
+			ControlName	Label
+			xpos	430
+			ypos	458
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill7
+		{
+			ControlName	Label
+			xpos	730
+			ypos	458
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns7
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	458
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits7
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	458
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills7
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	458
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy7
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	458
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage7
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	458
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame8
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	492
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep8
+		{
+			ControlName	Label
+			xpos	360
+			ypos	492
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset8
+		{
+			ControlName	Label
+			xpos	430
+			ypos	492
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill8
+		{
+			ControlName	Label
+			xpos	730
+			ypos	492
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns8
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	492
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits8
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	492
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills8
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	492
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy8
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	492
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage8
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	492
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame9
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	526
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep9
+		{
+			ControlName	Label
+			xpos	360
+			ypos	526
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset9
+		{
+			ControlName	Label
+			xpos	430
+			ypos	526
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill9
+		{
+			ControlName	Label
+			xpos	730
+			ypos	526
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns9
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	526
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits9
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	526
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills9
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	526
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy9
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	526
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage9
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	526
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame10
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	560
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep10
+		{
+			ControlName	Label
+			xpos	360
+			ypos	560
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset10
+		{
+			ControlName	Label
+			xpos	430
+			ypos	560
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill10
+		{
+			ControlName	Label
+			xpos	730
+			ypos	560
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns10
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	560
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits10
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	560
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills10
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	560
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy10
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	560
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage10
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	560
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame11
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	594
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep11
+		{
+			ControlName	Label
+			xpos	360
+			ypos	594
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset11
+		{
+			ControlName	Label
+			xpos	430
+			ypos	594
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill11
+		{
+			ControlName	Label
+			xpos	730
+			ypos	594
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns11
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	594
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits11
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	594
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills11
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	594
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy11
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	594
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage11
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	594
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame12
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	628
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep12
+		{
+			ControlName	Label
+			xpos	360
+			ypos	628
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset12
+		{
+			ControlName	Label
+			xpos	430
+			ypos	628
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill12
+		{
+			ControlName	Label
+			xpos	730
+			ypos	628
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns12
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	628
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits12
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	628
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills12
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	628
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy12
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	628
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage12
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	628
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame13
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	662
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep13
+		{
+			ControlName	Label
+			xpos	360
+			ypos	662
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset13
+		{
+			ControlName	Label
+			xpos	430
+			ypos	662
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill13
+		{
+			ControlName	Label
+			xpos	730
+			ypos	662
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns13
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	662
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits13
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	662
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills13
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	662
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy13
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	662
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage13
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	662
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame14
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	696
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep14
+		{
+			ControlName	Label
+			xpos	360
+			ypos	696
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset14
+		{
+			ControlName	Label
+			xpos	430
+			ypos	696
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill14
+		{
+			ControlName	Label
+			xpos	730
+			ypos	696
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns14
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	696
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits14
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	696
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills14
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	696
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy14
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	696
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage14
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	696
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame15
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	730
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep15
+		{
+			ControlName	Label
+			xpos	360
+			ypos	730
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset15
+		{
+			ControlName	Label
+			xpos	430
+			ypos	730
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill15
+		{
+			ControlName	Label
+			xpos	730
+			ypos	730
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns15
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	730
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits15
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	730
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills15
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	730
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy15
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	730
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage15
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	730
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame16
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	764
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep16
+		{
+			ControlName	Label
+			xpos	360
+			ypos	764
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset16
+		{
+			ControlName	Label
+			xpos	430
+			ypos	764
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill16
+		{
+			ControlName	Label
+			xpos	730
+			ypos	764
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns16
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	764
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits16
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	764
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills16
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	764
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy16
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	764
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage16
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	764
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame17
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	798
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep17
+		{
+			ControlName	Label
+			xpos	360
+			ypos	798
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset17
+		{
+			ControlName	Label
+			xpos	430
+			ypos	798
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill17
+		{
+			ControlName	Label
+			xpos	730
+			ypos	798
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns17
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	798
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits17
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	798
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills17
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	798
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy17
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	798
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage17
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	798
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame18
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	832
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep18
+		{
+			ControlName	Label
+			xpos	360
+			ypos	832
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset18
+		{
+			ControlName	Label
+			xpos	430
+			ypos	832
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill18
+		{
+			ControlName	Label
+			xpos	730
+			ypos	832
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns18
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	832
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits18
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	832
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills18
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	832
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy18
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	832
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage18
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	832
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowFrame19
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	866
+			wide	1220
+			tall	30
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"40 40 40 200"
+			drawColor	"40 40 40 200"
+		}
+
+		RowStep19
+		{
+			ControlName	Label
+			xpos	360
+			ypos	866
+			wide	70
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowPreset19
+		{
+			ControlName	Label
+			xpos	430
+			ypos	866
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDrill19
+		{
+			ControlName	Label
+			xpos	730
+			ypos	866
+			wide	300
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowRuns19
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	866
+			wide	80
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowHits19
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	866
+			wide	140
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowKills19
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	866
+			wide	90
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowAccuracy19
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	866
+			wide	110
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		RowDamage19
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	866
+			wide	120
+			tall	30
+			zpos	5
+			visible	1
+			labelText	""
+			font	Default_27
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		TotalFrame
+		{
+			ControlName	ImagePanel
+			xpos	350
+			ypos	905
+			wide	1220
+			tall	34
+			zpos	1
+			visible	1
+			scaleImage	1
+			fillColor	"90 70 10 220"
+			drawColor	"90 70 10 220"
+		}
+
+		TotalStep
+		{
+			ControlName	Label
+			xpos	360
+			ypos	905
+			wide	70
+			tall	34
+			zpos	5
+			visible	1
+			labelText	""
+			font	TitleBoldFont
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		TotalPreset
+		{
+			ControlName	Label
+			xpos	430
+			ypos	905
+			wide	300
+			tall	34
+			zpos	5
+			visible	1
+			labelText	""
+			font	TitleBoldFont
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		TotalDrill
+		{
+			ControlName	Label
+			xpos	730
+			ypos	905
+			wide	300
+			tall	34
+			zpos	5
+			visible	1
+			labelText	""
+			font	TitleBoldFont
+			fontHeight	20
+			textAlignment	west
+			fgcolor_override	"255 255 255 255"
+		}
+
+		TotalRuns
+		{
+			ControlName	Label
+			xpos	1030
+			ypos	905
+			wide	80
+			tall	34
+			zpos	5
+			visible	1
+			labelText	""
+			font	TitleBoldFont
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		TotalHits
+		{
+			ControlName	Label
+			xpos	1110
+			ypos	905
+			wide	140
+			tall	34
+			zpos	5
+			visible	1
+			labelText	""
+			font	TitleBoldFont
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		TotalKills
+		{
+			ControlName	Label
+			xpos	1250
+			ypos	905
+			wide	90
+			tall	34
+			zpos	5
+			visible	1
+			labelText	""
+			font	TitleBoldFont
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		TotalAccuracy
+		{
+			ControlName	Label
+			xpos	1340
+			ypos	905
+			wide	110
+			tall	34
+			zpos	5
+			visible	1
+			labelText	""
+			font	TitleBoldFont
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		TotalDamage
+		{
+			ControlName	Label
+			xpos	1450
+			ypos	905
+			wide	120
+			tall	34
+			zpos	5
+			visible	1
+			labelText	""
+			font	TitleBoldFont
+			fontHeight	20
+			textAlignment	center
+			fgcolor_override	"255 255 255 255"
+		}
+
+		MainMenuButton
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	760
+			ypos	960
+			wide	190
+			tall	40
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"MAIN MENU"
+			}
+		}
+
+		RunAgainButton
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	970
+			ypos	960
+			wide	190
+			tall	40
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"RUN AGAIN"
+			}
+		}
+	}
+}

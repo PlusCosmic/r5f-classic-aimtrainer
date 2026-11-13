@@ -88,9 +88,9 @@ resource/ui/menus/cosmic_aimtrainer/main.menu
 			ControlName	RuiButton
 			InheritProperties	TabButtonShort
 			scriptID	0
-			xpos	200
+			xpos	165
 			ypos	18
-			wide	200
+			wide	180
 			tall	50
 			zpos	5
 			visible	1
@@ -99,14 +99,14 @@ resource/ui/menus/cosmic_aimtrainer/main.menu
 			sound_accept	"UI_Menu_Accept"
 		}
 
-		SettingsTab
+		RoutinesTab
 		{
 			ControlName	RuiButton
 			InheritProperties	TabButtonShort
-			scriptID	1
-			xpos	610
+			scriptID	3
+			xpos	350
 			ypos	18
-			wide	200
+			wide	180
 			tall	50
 			zpos	5
 			visible	1
@@ -120,9 +120,9 @@ resource/ui/menus/cosmic_aimtrainer/main.menu
 			ControlName	RuiButton
 			InheritProperties	TabButtonShort
 			scriptID	2
-			xpos	405
+			xpos	535
 			ypos	18
-			wide	200
+			wide	180
 			tall	50
 			zpos	5
 			visible	1
@@ -130,6 +130,23 @@ resource/ui/menus/cosmic_aimtrainer/main.menu
 			sound_focus	"UI_Menu_Focus_Small"
 			sound_accept	"UI_Menu_Accept"
 		}
+
+		SettingsTab
+		{
+			ControlName	RuiButton
+			InheritProperties	TabButtonShort
+			scriptID	1
+			xpos	720
+			ypos	18
+			wide	180
+			tall	50
+			zpos	5
+			visible	1
+			enabled	1
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+		}
+
 
 		MadeBy
 		{
@@ -1592,6 +1609,125 @@ resource/ui/menus/cosmic_aimtrainer/main.menu
 			textAlignment	center
 			fgcolor_override	"255 255 255 255"
 			zpos	5
+		}
+		LoadoutQuick0
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	20
+			ypos	1010
+			wide	150
+			tall	40
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	""
+			}
+		}
+
+		LoadoutQuick1
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	175
+			ypos	1010
+			wide	150
+			tall	40
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	1
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	""
+			}
+		}
+
+		LoadoutQuick2
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	330
+			ypos	1010
+			wide	150
+			tall	40
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	2
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	""
+			}
+		}
+
+		LoadoutQuick3
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	485
+			ypos	1010
+			wide	150
+			tall	40
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	3
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	""
+			}
+		}
+
+		LoadoutQuick4
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	640
+			ypos	1010
+			wide	150
+			tall	40
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	4
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	""
+			}
+		}
+
+		LoadoutQuick5
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	795
+			ypos	1010
+			wide	150
+			tall	40
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	5
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	""
+			}
 		}
 	}
 }

@@ -34,6 +34,7 @@
 
 global function CAT_UI_WeaponSelectorInit
 global function CAT_UI_OpenWeaponSelector
+global function CAT_WS_NoteEquipped
 
 const string CAT_WS_MENU_NAME = "CAT_WeaponSelectorMenu"
 const string CAT_WS_PANEL_PREFIX = "CAT_WS_BuyMenu"
@@ -46,6 +47,8 @@ const int CAT_WS_CARDS = 12
 const int CAT_WS_CATEGORIES = 5
 const int CAT_WS_ITEMS = 15
 const int CAT_WS_SUMMARY_LINES = 5
+const int CAT_WS_LOADOUT_BUTTONS = 6    // LoadoutButton0..5 (= CAT_ST_LOADOUTS)
+const float CAT_WS_DELETE_CONFIRM_TIME = 4.0
 
 // attachment categories (box header order, same as the original)
 const int CAT_WS_OPTIC = 0
@@ -81,6 +84,11 @@ struct
 
 	table<string, string> selection     // weaponRef|cat -> attachment ref ("" = none)
 	table<string, array<string> > optionCache
+
+	// saved loadouts bar (optional in weaponselector.menu)
+	bool hasLoadoutBar = false
+	int pendingDelete = -1
+	float pendingDeleteTime = 0.0
 
 	// DevMenu fallback
 	bool fbActive = false
@@ -601,6 +609,8 @@ void function CAT_WS_Give( string weaponRef, int slot )
 		ClientCommand( cmd )
 
 	file.equipped[ slot == 1 ? 1 : 0 ] = weaponRef
+	// Remembered across restarts and given again on the next match.
+	CAT_ST_SetLastUsedSlot( slot == 1 ? 1 : 0, weaponRef, mods )
 
 	string status = CAT_WS_WeaponName( weaponRef ) + " -> " + CAT_WS_SlotLabel( slot )
 	if ( mods.len() == 1 )
@@ -843,6 +853,116 @@ void function CAT_WS_InitMenu( var menu )
 	Hud_AddEventHandler( Hud_GetChild( menu, "SlotButton0" ), UIE_CLICK, CAT_WS_OnSlotClick )
 	Hud_AddEventHandler( Hud_GetChild( menu, "SlotButton1" ), UIE_CLICK, CAT_WS_OnSlotClick )
 	Hud_AddEventHandler( Hud_GetChild( menu, "BackButton0" ), UIE_CLICK, CAT_WS_OnBackClick )
+
+	// Saved loadouts bar: optional, so an older deployed layout still works.
+	file.hasLoadoutBar = Hud_HasChild( menu, "LoadoutNameEntry" ) && Hud_HasChild( menu, "LoadoutSaveButton" )
+		&& Hud_HasChild( menu, "LoadoutButton" + ( CAT_WS_LOADOUT_BUTTONS - 1 ) ) && Hud_HasChild( menu, "LoadoutDelete" + ( CAT_WS_LOADOUT_BUTTONS - 1 ) )
+	if ( file.hasLoadoutBar )
+	{
+		Hud_AddEventHandler( Hud_GetChild( menu, "LoadoutSaveButton" ), UIE_CLICK, CAT_WS_OnLoadoutSaveClick )
+		for ( int i = 0; i < CAT_WS_LOADOUT_BUTTONS; i++ )
+		{
+			Hud_AddEventHandler( Hud_GetChild( menu, "LoadoutButton" + i ), UIE_CLICK, CAT_WS_OnLoadoutEquipClick )
+			Hud_AddEventHandler( Hud_GetChild( menu, "LoadoutDelete" + i ), UIE_CLICK, CAT_WS_OnLoadoutDeleteClick )
+		}
+	}
+	else
+	{
+		printt( CAT_LOG, "weapon selector: no saved loadouts bar in the deployed layout" )
+	}
+}
+
+// --------------------------------------------------------------------------
+// Saved loadouts bar (storage: ui_cat_storage.gnut, actions: ui_cat_menus.gnut)
+
+void function CAT_WS_RefreshLoadoutBar()
+{
+	if ( file.menu == null || !file.hasLoadoutBar )
+		return
+	bool armed = file.pendingDelete >= 0 && UITime() - file.pendingDeleteTime < CAT_WS_DELETE_CONFIRM_TIME
+	for ( int i = 0; i < CAT_WS_LOADOUT_BUTTONS; i++ )
+	{
+		CATLoadout lo = CAT_ST_GetLoadout( i )
+		var equip = Hud_GetChild( file.menu, "LoadoutButton" + i )
+		var del = Hud_GetChild( file.menu, "LoadoutDelete" + i )
+		CAT_WS_SetButtonText( equip, lo.used ? lo.name : "(empty)" )
+		CAT_WS_SetButtonText( del, armed && file.pendingDelete == i ? "?" : "X" )
+		Hud_SetEnabled( equip, lo.used )
+		Hud_SetVisible( del, lo.used )
+		Hud_SetEnabled( del, lo.used )
+	}
+}
+
+void function CAT_WS_SetButtonText( var button, string text )
+{
+	var rui = Hud_GetRui( button )
+	if ( rui != null )
+		RuiSetString( rui, "buttonText", text )
+}
+
+void function CAT_WS_OnLoadoutSaveClick( var button )
+{
+	string typed = Hud_GetUTF8Text( Hud_GetChild( file.menu, "LoadoutNameEntry" ) )
+	file.pendingDelete = -1
+	CAT_WS_SetStatus( CAT_UI_SaveCurrentLoadout( typed ) )
+	CAT_WS_RefreshLoadoutBar()
+}
+
+void function CAT_WS_OnLoadoutEquipClick( var button )
+{
+	int slot = int( Hud_GetScriptID( button ) )
+	file.pendingDelete = -1
+	CAT_WS_SetStatus( CAT_UI_EquipSavedLoadout( slot ) )
+	CAT_WS_RefreshLoadoutBar()
+	if ( file.activeTab >= 0 && file.activeTab < file.panels.len() )
+		CAT_WS_RefreshTabPanel( file.panels[ file.activeTab ] )
+	CAT_WS_RefreshBox()
+}
+
+// First click arms ("?"), a second click on the same X deletes.
+void function CAT_WS_OnLoadoutDeleteClick( var button )
+{
+	int slot = int( Hud_GetScriptID( button ) )
+	CATLoadout lo = CAT_ST_GetLoadout( slot )
+	if ( !lo.used )
+		return
+	if ( file.pendingDelete == slot && UITime() - file.pendingDeleteTime < CAT_WS_DELETE_CONFIRM_TIME )
+	{
+		file.pendingDelete = -1
+		CAT_ST_DeleteLoadout( slot )
+		CAT_WS_SetStatus( "Deleted loadout " + lo.name )
+	}
+	else
+	{
+		file.pendingDelete = slot
+		file.pendingDeleteTime = UITime()
+		CAT_WS_SetStatus( "Click ? again to delete loadout " + lo.name )
+	}
+	CAT_WS_RefreshLoadoutBar()
+}
+
+// A saved loadout was given outside the selector: mark the slot and remember
+// the attachments so the selector shows (and re-gives) the same weapon.
+void function CAT_WS_NoteEquipped( int slot, array<string> spec )
+{
+	if ( spec.len() == 0 )
+		return
+	CAT_UI_WeaponSelectorInit()
+	string ref = spec[0]
+	file.equipped[ slot == 1 ? 1 : 0 ] = ref
+	if ( !CAT_WS_LootReady() )
+		return
+	for ( int cat = 0; cat < CAT_WS_CATEGORIES; cat++ )
+	{
+		array<string> options = CAT_WS_GetOptions( ref, cat )
+		string sel = ""
+		for ( int i = 1; i < spec.len(); i++ )
+		{
+			if ( options.contains( spec[i] ) )
+				sel = spec[i]
+		}
+		CAT_WS_SetSelection( ref, cat, sel )
+	}
 }
 
 void function CAT_WS_InitTabPanel( var panel )
@@ -1096,6 +1216,8 @@ void function CAT_WS_RefreshMenu()
 	if ( file.boxRef != "" && !CAT_WS_IsWeaponOffered( file.boxRef ) )
 		file.boxRef = ""
 	CAT_WS_RefreshBox()
+	file.pendingDelete = -1
+	CAT_WS_RefreshLoadoutBar()
 }
 
 // --------------------------------------------------------------------------

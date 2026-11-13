@@ -18,6 +18,7 @@ When: "UI"
 Scripts:
 [
 	cosmic_aimtrainer/sh_cat_core.gnut
+	cosmic_aimtrainer/ui_cat_storage.gnut
 	cosmic_aimtrainer/ui_cat_menus.gnut
 	cosmic_aimtrainer/ui_cat_weaponselector.gnut
 ]

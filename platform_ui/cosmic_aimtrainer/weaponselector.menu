@@ -2215,5 +2215,306 @@ resource/ui/menus/cosmic_aimtrainer/weaponselector.menu
 			controlSettingsFile		"resource/ui/menus/cosmic_aimtrainer/panels/buymenu.res"
 		}
 
+		// Saved loadouts bar (ui_cat_weaponselector.gnut; optional).
+		LoadoutsTitle
+		{
+			ControlName	Label
+			xpos	96
+			ypos	962
+			wide	1728
+			tall	30
+			zpos	5
+			visible	1
+			labelText	"SAVED LOADOUTS  -  click a loadout to equip both slots, X deletes it. Type a name and SAVE to store the current loadout."
+			font	Default_27
+			fontHeight	22
+			textAlignment	west
+			fgcolor_override	"200 200 200 255"
+		}
+
+		LoadoutNameEntry
+		{
+			ControlName	TextEntry
+			xpos	96
+			ypos	998
+			wide	260
+			tall	44
+			zpos	8
+			allowRightClickMenu	0
+			allowSpecialCharacters	0
+			unicode	0
+			keyboardTitle	"Loadout name"
+			keyboardDescription	"Loadout name"
+			visible	1
+			enabled	1
+			textHidden	0
+			editable	1
+			maxchars	24
+			textAlignment	west
+			ruiFont	TitleRegularFont
+			ruiFontHeight	24
+			ruiMinFontHeight	16
+			bgcolor_override	"30 30 30 230"
+		}
+
+		LoadoutSaveButton
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	362
+			ypos	998
+			wide	120
+			tall	44
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"SAVE"
+			}
+		}
+
+		LoadoutButton0
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	500
+			ypos	998
+			wide	170
+			tall	44
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	""
+			}
+		}
+
+		LoadoutDelete0
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	674
+			ypos	998
+			wide	44
+			tall	44
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	0
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"X"
+			}
+		}
+
+		LoadoutButton1
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	722
+			ypos	998
+			wide	170
+			tall	44
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	1
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	""
+			}
+		}
+
+		LoadoutDelete1
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	896
+			ypos	998
+			wide	44
+			tall	44
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	1
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"X"
+			}
+		}
+
+		LoadoutButton2
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	944
+			ypos	998
+			wide	170
+			tall	44
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	2
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	""
+			}
+		}
+
+		LoadoutDelete2
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1118
+			ypos	998
+			wide	44
+			tall	44
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	2
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"X"
+			}
+		}
+
+		LoadoutButton3
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1166
+			ypos	998
+			wide	170
+			tall	44
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	3
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	""
+			}
+		}
+
+		LoadoutDelete3
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1340
+			ypos	998
+			wide	44
+			tall	44
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	3
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"X"
+			}
+		}
+
+		LoadoutButton4
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1388
+			ypos	998
+			wide	170
+			tall	44
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	4
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	""
+			}
+		}
+
+		LoadoutDelete4
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1562
+			ypos	998
+			wide	44
+			tall	44
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	4
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"X"
+			}
+		}
+
+		LoadoutButton5
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1610
+			ypos	998
+			wide	170
+			tall	44
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	5
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	""
+			}
+		}
+
+		LoadoutDelete5
+		{
+			ControlName	RuiButton
+			rui	"ui/generic_button.rpak"
+			xpos	1784
+			ypos	998
+			wide	44
+			tall	44
+			zpos	6
+			visible	1
+			enabled	1
+			scriptID	5
+			sound_focus	"UI_Menu_Focus_Small"
+			cursorVelocityModifier	0.7
+			ruiArgs
+			{
+				buttonText	"X"
+			}
+		}
 	}
 }

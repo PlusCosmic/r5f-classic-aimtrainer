@@ -43,6 +43,11 @@ global function CAT_UI_HistoryAdd
 // weapon selector (or anything else) -> back to the aim trainer main menu
 global function CAT_UI_BackToMainMenu
 
+// saved loadouts (weapon selector + main menu + DevMenu pages)
+global function CAT_UI_EquipSavedLoadout
+global function CAT_UI_SaveCurrentLoadout
+global function CAT_UI_LoadoutLabel
+
 const int CAT_DRILL_BUTTONS = 16
 const int CAT_FB_WEAPONS_PER_PAGE = 50
 const float CAT_SETTING_SEND_DELAY = 0.3
@@ -55,6 +60,28 @@ const array<string> CAT_HISTORY_COLUMNS = [ "Name", "Hits", "Kills", "Accuracy",
 const int CAT_TAB_CHALLENGES = 0
 const int CAT_TAB_HISTORY = 1
 const int CAT_TAB_SETTINGS = 2
+const int CAT_TAB_ROUTINES = 3
+
+// Commands the UI queues itself (presets, playlists, loadouts) go out one per
+// CAT_CMD_SPACING: the server drops/kicks clients over its string command quota.
+const float CAT_CMD_SPACING = 0.1
+// After the last queued command: give up waiting for the challenge to start.
+const float CAT_START_TIMEOUT = 6.0
+const int CAT_PL_COUNTDOWN = 5          // seconds on a playlist results screen
+const float CAT_DELETE_CONFIRM_TIME = 4.0
+const int CAT_PRESET_ROWS = 12          // PresetName0..11 in routines.menu (= CAT_ST_PRESETS)
+const int CAT_PLAYLIST_ROWS = 6         // PlaylistName0..5 (= CAT_ST_PLAYLISTS)
+const int CAT_STEP_ROWS = 20            // StepText0..19 (= CAT_ST_MAX_STEPS)
+const int CAT_SUMMARY_ROWS = 20         // RowStep0..19 in playlistsummary.menu
+const int CAT_LOADOUT_QUICK = 6         // LoadoutQuick0..5 in main.menu (= CAT_ST_LOADOUTS)
+const array<string> CAT_SUMMARY_COLUMNS = [ "Step", "Preset", "Drill", "Runs", "Hits", "Kills", "Accuracy", "Damage" ]
+
+enum eCATEditor
+{
+	NONE,
+	PRESET,
+	PLAYLIST,
+}
 
 // Mirrors CAT_DEFAULT_WEAPON (SERVER-only global in sv_cat_core.gnut).
 const string CAT_DEFAULT_WEAPON_UI = "mp_weapon_wingman"
@@ -118,8 +145,53 @@ struct
 	var settingsMenu = null
 	var resultsMenu = null
 	var historyMenu = null       // optional: null -> DevMenu history page
+	var routinesMenu = null      // optional: null -> DevMenu routines page
+	var summaryMenu = null       // optional: null -> DevMenu playlist summary page
+	bool resultsHasPlaylist = false   // results.menu has the playlist strip
+	bool mainHasQuickLoadouts = false // main.menu has LoadoutQuick0..5
 
 	array<int> buttonDrill       // drill id per DrillButton index, -1 = unused
+
+	// paced command queue (see CAT_CMD_SPACING)
+	array<string> cmdQueue
+	bool cmdPumpRunning = false
+	bool startPending = false    // a queued "start" has not turned into a challenge yet
+	int startToken = 0
+	bool autoEquipped = false    // last-used loadout given this level
+
+	// routines tab: delete confirmation and the editor
+	string pendingDeleteKey = ""
+	float pendingDeleteTime = 0.0
+	int editorMode = eCATEditor.NONE
+	int editIndex = -1           // slot being edited, -1 = new
+	int edDrillId = 0
+	int edLoadout = 0
+	array<int> edValues
+	int edRepeats = 1
+	array<int> edSteps
+	int edAddPreset = -1
+
+	// running playlist
+	bool plActive = false
+	bool plSummaryValid = false
+	int plIndex = -1
+	string plName = ""
+	int plRepeats = 1
+	array<int> plSteps           // preset index per step
+	int plStep = 0
+	int plRepeat = 0
+	int plCountdownGen = 0
+	int plCountdownLeft = 0
+	bool plHaveResult = false    // results of the current step not yet added
+	int plLastHits = 0
+	int plLastShots = 0
+	int plLastKills = 0
+	int plLastDamage = 0
+	array<int> plRuns            // per step position
+	array<int> plHits
+	array<int> plShots
+	array<int> plKills
+	array<int> plDamage
 	int sessionKills = 0
 
 	// settings menu controls
@@ -173,6 +245,13 @@ void function CAT_UI_OnLevelShutdown()
 	file.results.valid = false
 	file.weapon0 = ""
 	file.weapon1 = ""
+	file.cmdQueue.clear()
+	file.startPending = false
+	file.startToken++
+	file.autoEquipped = false
+	file.editorMode = eCATEditor.NONE
+	file.pendingDeleteKey = ""
+	CAT_UI_PL_Stop()
 }
 
 // Testing aid: "script_ui CAT_UI_ForceFallback( true )".
@@ -258,6 +337,22 @@ bool function CAT_UI_TryCreateCustomMenus()
 		  "RowFrame18", "RowTime18", "NoChallengesLbl", "Pages", "NextPageButton", "PrevPageButton" ] )
 	if ( file.historyMenu == null )
 		printt( CAT_LOG, "history menu unavailable, using the DevMenu history page" )
+
+	// Optional too: routines.menu / playlistsummary.menu fall back to DevMenu pages.
+	file.routinesMenu = CAT_UI_TryAddMenu( "CAT_RoutinesMenu", $"resource/ui/menus/cosmic_aimtrainer/routines.menu", CAT_InitRoutinesMenu,
+		[ "ScreenBlur", "ChallengesTab", "RoutinesTab", "HistoryTab", "SettingsTab", "NewPresetButton", "PresetsEmpty", "PresetFrame11",
+		  "PresetName11", "PresetRun11", "PresetEdit11", "PresetDelete11", "NewPlaylistButton", "PlaylistsEmpty", "PlaylistFrame5",
+		  "PlaylistName5", "PlaylistRun5", "PlaylistEdit5", "PlaylistDelete5", "RoutinesStatus", "EditorTitle", "NameEntry", "DrillPrev",
+		  "DrillValue", "DrillNext", "LoadoutPrev", "LoadoutValue", "LoadoutNext", "PresetSettings3", "CaptureButton", "RepeatsPrev",
+		  "RepeatsValue", "RepeatsNext", "AddPrev", "AddValue", "AddNext", "AddButton", "StepsLabel", "StepText19", "StepUp19",
+		  "StepDown19", "StepRemove19", "EditorSave", "EditorCancel", "EditorStatus" ] )
+	if ( file.routinesMenu == null )
+		printt( CAT_LOG, "routines menu unavailable, using the DevMenu routines page" )
+
+	file.summaryMenu = CAT_UI_TryAddMenu( "CAT_PlaylistSummaryMenu", $"resource/ui/menus/cosmic_aimtrainer/playlistsummary.menu", CAT_InitSummaryMenu,
+		[ "Title", "Subtitle", "RowFrame19", "RowStep19", "RowDamage19", "TotalFrame", "TotalStep", "TotalDamage", "MainMenuButton", "RunAgainButton" ] )
+	if ( file.summaryMenu == null )
+		printt( CAT_LOG, "playlist summary menu unavailable, using the DevMenu summary page" )
 
 	return true
 }
@@ -431,6 +526,10 @@ bool function CAT_UI_IsOurMenuActive()
 		return true
 	if ( file.historyMenu != null && active == file.historyMenu )
 		return true
+	if ( file.routinesMenu != null && active == file.routinesMenu )
+		return true
+	if ( file.summaryMenu != null && active == file.summaryMenu )
+		return true
 	return ( "DevMenu" in uiGlobal.menus ) && active == GetMenu( "DevMenu" )
 }
 
@@ -500,6 +599,18 @@ void function CAT_UI_NotifyMenuClosed()
 void function CAT_UI_OpenMainMenu( int sessionKills )
 {
 	file.sessionKills = sessionKills
+
+	// A "start" sent from the results screen first ends that screen on the
+	// server, which sends the main menu; the challenge follows right after.
+	if ( file.startPending )
+	{
+		printt( CAT_LOG, "main menu skipped: a queued challenge start is on its way" )
+		return
+	}
+
+	// Opening the main menu by any route ends a running playlist.
+	CAT_UI_PL_Stop()
+
 	file.openGen++
 	thread CAT_UI_OpenMainMenu_Thread( file.openGen )
 }
@@ -510,6 +621,7 @@ void function CAT_UI_OpenMainMenu_Thread( int gen )
 		return
 	if ( file.challengeActive )
 		return
+	CAT_UI_AutoEquipOnce()
 	CAT_UI_ShowMain()
 }
 
@@ -518,6 +630,8 @@ void function CAT_UI_SetChallengeActive( bool active )
 	file.challengeActive = active
 	if ( active )
 	{
+		file.startPending = false
+		file.startToken++
 		file.openGen++
 		CAT_UI_StopWatch()
 	}
@@ -537,6 +651,21 @@ void function CAT_UI_ShowResults( int drillId, int hits, int kills, float accura
 	r.isNewBest = isNewBest
 	r.totalShots = totalShots
 	file.challengeActive = false
+	file.startPending = false
+
+	// Playlist: these are the current step's results (a Restart overwrites
+	// them; they are added when the playlist moves on).
+	if ( file.plActive )
+	{
+		file.plHaveResult = true
+		file.plLastHits = hits
+		file.plLastShots = totalShots
+		file.plLastKills = kills
+		file.plLastDamage = damage
+		file.plCountdownGen++
+		file.plCountdownLeft = CAT_PL_COUNTDOWN
+	}
+
 	file.openGen++
 	thread CAT_UI_ShowResults_Thread( file.openGen )
 }
@@ -547,6 +676,7 @@ void function CAT_UI_ShowResults_Thread( int gen )
 		return
 
 	EmitUISound( "UI_Menu_Accept" )
+	bool shown = false
 	if ( CAT_UI_UseCustom() )
 	{
 		try
@@ -555,15 +685,24 @@ void function CAT_UI_ShowResults_Thread( int gen )
 			CloseAllMenus()
 			AdvanceMenu( file.resultsMenu )
 			CAT_UI_StartWatch( eCATMenuMode.RESULTS )
-			return
+			shown = true
 		}
 		catch ( errRes )
 		{
 			CAT_UI_OnCustomMenuError( errRes )
 		}
 	}
-	CAT_FB_Open( CAT_FB_ResultsPage )
-	CAT_UI_StartWatch( eCATMenuMode.RESULTS )
+	if ( !shown )
+	{
+		CAT_FB_Open( CAT_FB_ResultsPage )
+		CAT_UI_StartWatch( eCATMenuMode.RESULTS )
+	}
+
+	if ( file.plActive )
+	{
+		file.plCountdownGen++
+		thread CAT_UI_PL_Countdown_Thread( file.plCountdownGen )
+	}
 }
 
 void function CAT_UI_CloseResults()
@@ -705,6 +844,28 @@ void function CAT_UI_ShowSettings()
 	CAT_FB_Open( CAT_FB_SettingsPage )
 }
 
+// ROUTINES tab (custom menu) or the DevMenu routines page.
+void function CAT_UI_ShowRoutines()
+{
+	if ( CAT_UI_UseCustom() && file.routinesMenu != null )
+	{
+		try
+		{
+			CAT_UI_RefreshRoutinesMenu()
+			CloseAllMenus()
+			AdvanceMenu( file.routinesMenu )
+			return
+		}
+		catch ( errRoutines )
+		{
+			// Only the routines menu is broken: keep the other custom menus.
+			printt( CAT_LOG, "routines menu error, using the DevMenu routines page:", errRoutines )
+			file.routinesMenu = null
+		}
+	}
+	CAT_FB_Open( CAT_FB_RoutinesPage )
+}
+
 // For the weapon selector: return to the aim trainer main menu.
 void function CAT_UI_BackToMainMenu()
 {
@@ -733,8 +894,10 @@ void function CAT_UI_LeaveMain()
 		CAT_UI_NotifyMenuClosed()
 }
 
+// Playlist: reruns the current step (its new results replace the old ones).
 void function CAT_UI_ResultsRestart()
 {
+	file.plCountdownGen++
 	CAT_UI_StopWatch()
 	CAT_UI_Send( "restart" )
 	CloseAllMenus()
@@ -743,9 +906,82 @@ void function CAT_UI_ResultsRestart()
 // Server answers "skip" with CAT_CL_OpenMainMenu.
 void function CAT_UI_ResultsToMain()
 {
+	CAT_UI_PL_Stop()
 	CAT_UI_StopWatch()
 	CAT_UI_Send( "skip" )
 	CloseAllMenus()
+}
+
+// Starts a challenge through the paced queue: settings / weapons, then
+// "start <id>" last (cmds must end with it). Works from the idle menus and
+// from the results screen (the server ends the results screen on "start").
+void function CAT_UI_LaunchCommands( array<string> cmds )
+{
+	file.openGen++
+	CAT_UI_StopWatch()
+	CAT_UI_FlushSettings()
+	EmitUISound( "UI_Menu_Accept" )
+	CAT_UI_SetMenuCamera( false )
+	file.startPending = true
+	file.startToken++
+	foreach ( string cmd in cmds )
+		CAT_UI_QueueCommand( cmd )
+	thread CAT_UI_StartTimeout_Thread( file.startToken )
+	CloseAllMenus()
+}
+
+// The server refused the start (or it got lost): don't leave the player
+// frozen without a menu.
+void function CAT_UI_StartTimeout_Thread( int token )
+{
+	while ( file.cmdQueue.len() > 0 || file.cmdPumpRunning )
+	{
+		WaitFrame()
+		if ( token != file.startToken )
+			return
+	}
+	float until = UITime() + CAT_START_TIMEOUT
+	while ( UITime() < until )
+	{
+		WaitFrame()
+		if ( token != file.startToken || !file.startPending )
+			return
+	}
+	if ( file.challengeActive || !IsConnected() )
+		return
+	printt( CAT_LOG, "the queued challenge did not start, back to the menu" )
+	file.startPending = false
+	CAT_UI_PL_Stop()
+	CAT_UI_Send( "skip" )
+	CAT_UI_ShowMain()
+}
+
+void function CAT_UI_QueueCommand( string cmd )
+{
+	file.cmdQueue.append( cmd )
+	if ( !file.cmdPumpRunning )
+		thread CAT_UI_CommandPump_Thread()
+}
+
+// "#refresh" asks the client to report the weapons again (after a give).
+void function CAT_UI_CommandPump_Thread()
+{
+	file.cmdPumpRunning = true
+	while ( file.cmdQueue.len() > 0 )
+	{
+		string cmd = file.cmdQueue[0]
+		file.cmdQueue.remove( 0 )
+		if ( cmd == "#refresh" )
+		{
+			wait 0.3
+			if ( IsConnected() )
+				RunClientScript( "CAT_CL_UI_RefreshLoadout" )
+			continue
+		}
+		CAT_UI_Send( cmd )
+		wait CAT_CMD_SPACING
+	}
+	file.cmdPumpRunning = false
 }
 
 // --------------------------------------------------------------------------
@@ -1022,7 +1258,421 @@ void function CAT_UI_GiveWeapon( string ref )
 		file.weapon1 = ref
 	else
 		file.weapon0 = ref
+	array<string> mods
+	if ( file.optic != "" )
+		mods.append( file.optic )
+	CAT_ST_SetLastUsedSlot( file.weaponSlot, ref, mods )
 	EmitUISound( "UI_Menu_Accept" )
+}
+
+// --------------------------------------------------------------------------
+// Saved loadouts (storage in ui_cat_storage.gnut)
+
+string function CAT_UI_LoadoutLabel( CATLoadout lo )
+{
+	string text = lo.name + "  ("
+	text += lo.primary.len() > 0 ? CAT_UI_WeaponName( lo.primary[0] ) : "-"
+	if ( lo.secondary.len() > 0 )
+		text += " / " + CAT_UI_WeaponName( lo.secondary[0] )
+	return text + ")"
+}
+
+string function CAT_UI_WeaponCommand( array<string> spec, int slot )
+{
+	string cmd = "weapon " + spec[0] + " " + slot.tostring()
+	for ( int i = 1; i < spec.len(); i++ )
+		cmd += " " + spec[i]
+	return cmd
+}
+
+// An empty secondary leaves the current secondary alone (the server has no
+// "clear slot" and the selector never clears one either).
+array<string> function CAT_UI_LoadoutCommands( CATLoadout lo )
+{
+	array<string> cmds
+	if ( lo.primary.len() > 0 )
+		cmds.append( CAT_UI_WeaponCommand( lo.primary, 0 ) )
+	if ( lo.secondary.len() > 0 )
+		cmds.append( CAT_UI_WeaponCommand( lo.secondary, 1 ) )
+	return cmds
+}
+
+// Bookkeeping after a loadout's weapon commands were queued.
+void function CAT_UI_NoteLoadoutGiven( CATLoadout lo, bool remember )
+{
+	if ( lo.primary.len() > 0 )
+	{
+		file.weapon0 = lo.primary[0]
+		CAT_WS_NoteEquipped( 0, lo.primary )
+		if ( remember )
+			CAT_ST_SetLastUsedSlot( 0, lo.primary[0], lo.primary.slice( 1 ) )
+	}
+	if ( lo.secondary.len() > 0 )
+	{
+		file.weapon1 = lo.secondary[0]
+		CAT_WS_NoteEquipped( 1, lo.secondary )
+		if ( remember )
+			CAT_ST_SetLastUsedSlot( 1, lo.secondary[0], lo.secondary.slice( 1 ) )
+	}
+	CAT_UI_UpdateCurrentWeaponLabel()
+}
+
+void function CAT_UI_EquipLoadout( CATLoadout lo, bool remember )
+{
+	array<string> cmds = CAT_UI_LoadoutCommands( lo )
+	if ( cmds.len() == 0 )
+		return
+	foreach ( string cmd in cmds )
+		CAT_UI_QueueCommand( cmd )
+	CAT_UI_QueueCommand( "#refresh" )
+	CAT_UI_NoteLoadoutGiven( lo, remember )
+}
+
+// Returns a status line for the caller to show.
+string function CAT_UI_EquipSavedLoadout( int slot )
+{
+	if ( file.challengeActive )
+		return "Finish the challenge first"
+	CATLoadout lo = CAT_ST_GetLoadout( slot )
+	if ( !lo.used )
+		return "That loadout slot is empty"
+	CAT_UI_EquipLoadout( lo, true )
+	EmitUISound( "UI_Menu_Accept" )
+	return "Equipped " + CAT_UI_LoadoutLabel( lo )
+}
+
+// Primary / secondary as last given in game; falls back to what the client
+// reported (default weapon if nothing ever was given).
+array< array<string> > function CAT_UI_CurrentLoadout()
+{
+	CATLoadout last = CAT_ST_GetLastUsed()
+	array<string> primary = clone last.primary
+	array<string> secondary = clone last.secondary
+	if ( primary.len() == 0 )
+		primary.append( file.weapon0 != "" ? file.weapon0 : CAT_DEFAULT_WEAPON_UI )
+	if ( secondary.len() == 0 && file.weapon1 != "" )
+		secondary.append( file.weapon1 )
+	array< array<string> > result
+	result.append( primary )
+	result.append( secondary )
+	return result
+}
+
+// Same name -> overwrites that slot, otherwise the first free slot.
+string function CAT_UI_SaveCurrentLoadout( string typedName )
+{
+	array< array<string> > current = CAT_UI_CurrentLoadout()
+	string name = CAT_ST_SanitizeName( typedName, "" )
+	int slot = name != "" ? CAT_ST_FindLoadoutByName( name ) : -1
+	bool overwrite = slot >= 0
+	if ( slot < 0 )
+		slot = CAT_ST_FirstFreeLoadout()
+	if ( slot < 0 )
+		return "All " + string( CAT_ST_LOADOUTS ) + " loadout slots are used - delete one first"
+	if ( name == "" )
+		name = "Loadout " + ( slot + 1 ).tostring()
+	if ( !CAT_ST_SaveLoadout( slot, name, current[0], current[1] ) )
+		return "Could not save the loadout (see console)"
+	EmitUISound( "UI_Menu_Accept" )
+	return ( overwrite ? "Updated loadout " : "Saved loadout " ) + name + " (slot " + ( slot + 1 ).tostring() + ")"
+}
+
+// First main menu of a level: give the loadout used last time.
+void function CAT_UI_AutoEquipOnce()
+{
+	if ( file.autoEquipped )
+		return
+	file.autoEquipped = true
+	CATLoadout lo = CAT_ST_GetLastUsed()
+	if ( !lo.used )
+		return
+	printt( CAT_LOG, "equipping the last used loadout" )
+	CAT_UI_EquipLoadout( lo, false )
+}
+
+void function CAT_UI_UpdateCurrentWeaponLabel()
+{
+	if ( file.mainMenu == null || GetActiveMenu() != file.mainMenu )
+		return
+	try
+	{
+		Hud_SetText( Hud_GetChild( file.mainMenu, "CurrentWeapon" ), CAT_UI_CurrentWeaponText() )
+	}
+	catch ( errLabel )
+	{
+	}
+}
+
+// --------------------------------------------------------------------------
+// Presets / playlists (storage in ui_cat_storage.gnut)
+
+string function CAT_UI_PresetLabel( CATPreset p )
+{
+	string text = p.name + "  -  " + CAT_UI_DrillName( p.drillId )
+	if ( p.loadoutSlot > 0 )
+	{
+		CATLoadout lo = CAT_ST_GetLoadout( p.loadoutSlot - 1 )
+		if ( lo.used )
+			text += "  [" + lo.name + "]"
+	}
+	return text
+}
+
+string function CAT_UI_PlaylistLabel( CATPlaylist pl )
+{
+	string text = pl.name + "  -  " + pl.steps.len().tostring() + ( pl.steps.len() == 1 ? " step" : " steps" )
+	if ( pl.repeats > 1 )
+		text += " x" + pl.repeats.tostring()
+	return text
+}
+
+bool function CAT_UI_IsRunnablePreset( int index )
+{
+	CATPreset p = CAT_ST_GetPreset( index )
+	return p.used && CAT_IsValidDrill( p.drillId )
+}
+
+// Writes the preset's settings to the ConVars (the SETTINGS tab shows them)
+// and returns the commands: changed settings, its loadout, then "start".
+array<string> function CAT_UI_PresetCommands( CATPreset p )
+{
+	array<string> cmds
+	array<string> keys = CAT_SettingKeys()
+	for ( int i = 0; i < keys.len() && i < p.values.len(); i++ )
+	{
+		string key = keys[i]
+		int value = CAT_ClampSetting( key, p.values[i] )
+		if ( value == CAT_UI_GetSetting( key ) && !( key in file.pendingSend ) )
+			continue
+		try
+		{
+			SetConVarInt( "cosmic_aimtrainer_" + key, value )
+		}
+		catch ( errPresetCv )
+		{
+			printt( CAT_LOG, "could not write convar", key, errPresetCv )
+		}
+		if ( key in file.pendingSend )
+			delete file.pendingSend[ key ]
+		cmds.append( "set " + key + " " + value.tostring() )
+	}
+
+	if ( p.loadoutSlot > 0 )
+	{
+		CATLoadout lo = CAT_ST_GetLoadout( p.loadoutSlot - 1 )
+		if ( lo.used )
+		{
+			cmds.extend( CAT_UI_LoadoutCommands( lo ) )
+			CAT_UI_NoteLoadoutGiven( lo, true )
+		}
+	}
+
+	cmds.append( "start " + p.drillId.tostring() )
+	return cmds
+}
+
+// Returns a status line (empty when the preset started).
+string function CAT_UI_RunPreset( int index )
+{
+	CATPreset p = CAT_ST_GetPreset( index )
+	if ( !p.used )
+		return "That preset slot is empty"
+	if ( !CAT_IsValidDrill( p.drillId ) )
+		return "Preset " + p.name + " uses a challenge that is not available"
+	CAT_UI_PL_Stop()
+	CAT_UI_LaunchCommands( CAT_UI_PresetCommands( p ) )
+	return ""
+}
+
+// ---- playlist runner ----
+
+// Returns a status line (empty when the playlist started).
+string function CAT_UI_RunPlaylist( int index )
+{
+	CATPlaylist pl = CAT_ST_GetPlaylist( index )
+	if ( !pl.used )
+		return "That playlist slot is empty"
+
+	array<int> steps
+	foreach ( int step in pl.steps )
+	{
+		if ( CAT_UI_IsRunnablePreset( step ) )
+			steps.append( step )
+	}
+	if ( steps.len() == 0 )
+		return "Playlist " + pl.name + " has no presets that can run"
+
+	CAT_UI_PL_Stop()
+	file.plActive = true
+	file.plIndex = index
+	file.plName = pl.name
+	file.plRepeats = pl.repeats
+	file.plSteps = steps
+	file.plStep = 0
+	file.plRepeat = 0
+	file.plHaveResult = false
+	file.plRuns.clear()
+	file.plHits.clear()
+	file.plShots.clear()
+	file.plKills.clear()
+	file.plDamage.clear()
+	foreach ( int step in steps )
+	{
+		file.plRuns.append( 0 )
+		file.plHits.append( 0 )
+		file.plShots.append( 0 )
+		file.plKills.append( 0 )
+		file.plDamage.append( 0 )
+	}
+	printt( CAT_LOG, "playlist start", pl.name, steps.len(), "steps x", pl.repeats )
+	CAT_UI_PL_StartCurrent()
+	return ""
+}
+
+void function CAT_UI_PL_Stop()
+{
+	bool wasRunning = file.plActive
+	file.plActive = false
+	file.plSummaryValid = false
+	file.plHaveResult = false
+	file.plCountdownGen++
+	if ( wasRunning )
+	{
+		printt( CAT_LOG, "playlist stopped" )
+		CAT_UI_RefreshPlaylistStrip()
+	}
+}
+
+void function CAT_UI_PL_StartCurrent()
+{
+	CATPreset p = CAT_ST_GetPreset( file.plSteps[ file.plStep ] )
+	if ( !p.used || !CAT_IsValidDrill( p.drillId ) )
+	{
+		printt( CAT_LOG, "playlist step preset is gone, stopping" )
+		CAT_UI_PL_Stop()
+		CAT_UI_Send( "skip" )
+		return
+	}
+	CAT_UI_LaunchCommands( CAT_UI_PresetCommands( p ) )
+}
+
+bool function CAT_UI_PL_IsLastRun()
+{
+	return file.plStep >= file.plSteps.len() - 1 && file.plRepeat >= file.plRepeats - 1
+}
+
+void function CAT_UI_PL_CommitResult()
+{
+	if ( !file.plHaveResult )
+		return
+	file.plHaveResult = false
+	int i = file.plStep
+	if ( i < 0 || i >= file.plRuns.len() )
+		return
+	file.plRuns[i] = file.plRuns[i] + 1
+	file.plHits[i] = file.plHits[i] + file.plLastHits
+	file.plShots[i] = file.plShots[i] + file.plLastShots
+	file.plKills[i] = file.plKills[i] + file.plLastKills
+	file.plDamage[i] = file.plDamage[i] + file.plLastDamage
+}
+
+// Results screen -> next step (or the summary after the last one).
+void function CAT_UI_PL_Continue()
+{
+	if ( !file.plActive )
+		return
+	file.plCountdownGen++
+	CAT_UI_PL_CommitResult()
+
+	if ( CAT_UI_PL_IsLastRun() )
+	{
+		CAT_UI_PL_Finish()
+		return
+	}
+	file.plStep++
+	if ( file.plStep >= file.plSteps.len() )
+	{
+		file.plStep = 0
+		file.plRepeat++
+	}
+	CAT_UI_PL_StartCurrent()
+}
+
+void function CAT_UI_PL_Countdown_Thread( int gen )
+{
+	for ( int left = CAT_PL_COUNTDOWN; left > 0; left-- )
+	{
+		if ( gen != file.plCountdownGen || !file.plActive || file.mode != eCATMenuMode.RESULTS )
+			return
+		file.plCountdownLeft = left
+		CAT_UI_RefreshPlaylistStrip()
+		wait 1.0
+	}
+	// Results screen gone (Esc / main menu): the main menu stops the playlist.
+	if ( gen != file.plCountdownGen || !file.plActive || file.mode != eCATMenuMode.RESULTS )
+		return
+	CAT_UI_PL_Continue()
+}
+
+// The server is still on the last step's results: the summary replaces them,
+// and leaving it sends "skip" like the results screen.
+void function CAT_UI_PL_Finish()
+{
+	file.plActive = false
+	file.plSummaryValid = true
+	file.plCountdownGen++
+	printt( CAT_LOG, "playlist finished", file.plName )
+
+	if ( CAT_UI_UseCustom() && file.summaryMenu != null )
+	{
+		try
+		{
+			CAT_UI_RefreshSummaryMenu()
+			CAT_UI_StopWatch()
+			CloseAllMenus()
+			AdvanceMenu( file.summaryMenu )
+			CAT_UI_StartWatch( eCATMenuMode.RESULTS )
+			return
+		}
+		catch ( errSummary )
+		{
+			printt( CAT_LOG, "playlist summary menu error, using the DevMenu page:", errSummary )
+			file.summaryMenu = null
+		}
+	}
+	CAT_UI_StopWatch()
+	CAT_FB_Open( CAT_FB_SummaryPage )
+	CAT_UI_StartWatch( eCATMenuMode.RESULTS )
+}
+
+string function CAT_UI_PL_StepName( int stepPos )
+{
+	if ( stepPos < 0 || stepPos >= file.plSteps.len() )
+		return "-"
+	CATPreset p = CAT_ST_GetPreset( file.plSteps[ stepPos ] )
+	return p.used ? p.name : "(deleted preset)"
+}
+
+string function CAT_UI_PL_InfoText()
+{
+	return "Playlist " + file.plName + ":  step " + ( file.plStep + 1 ).tostring() + "/" + file.plSteps.len().tostring()
+		+ ",  repeat " + ( file.plRepeat + 1 ).tostring() + "/" + file.plRepeats.tostring()
+}
+
+string function CAT_UI_PL_NextText( bool withCountdown )
+{
+	string suffix = withCountdown ? " in " + file.plCountdownLeft.tostring() + "..." : ""
+	if ( CAT_UI_PL_IsLastRun() )
+		return "Last step done  -  summary" + suffix
+	int nextPos = file.plStep + 1 >= file.plSteps.len() ? 0 : file.plStep + 1
+	return "Next: " + CAT_UI_PL_StepName( nextPos ) + suffix
+}
+
+string function CAT_UI_AccuracyOf( int hits, int shots )
+{
+	if ( shots <= 0 )
+		return "0.0%"
+	return format( "%.1f", 100.0 * float( hits ) / float( shots ) ) + "%"
 }
 
 // ==========================================================================
@@ -1050,6 +1700,14 @@ void function CAT_UI_InitHeader( var menu )
 		Hud_AddEventHandler( historyTab, UIE_CLICK, CAT_UI_OnHistoryTabClick )
 	}
 
+	// ROUTINES (presets + playlists). Optional for older deployed layouts.
+	if ( Hud_HasChild( menu, "RoutinesTab" ) )
+	{
+		var routinesTab = Hud_GetChild( menu, "RoutinesTab" )
+		CAT_UI_SetButtonText( routinesTab, "ROUTINES" )
+		Hud_AddEventHandler( routinesTab, UIE_CLICK, CAT_UI_OnRoutinesTabClick )
+	}
+
 	// Original "Global Settings" corner button (same setup as ui/menu_lobby.nut).
 	// Optional: the menu works without it.
 	try
@@ -1074,6 +1732,16 @@ void function CAT_UI_SetTabsSelected( var menu, int tab )
 	Hud_SetSelected( Hud_GetChild( menu, "SettingsTab" ), tab == CAT_TAB_SETTINGS )
 	if ( Hud_HasChild( menu, "HistoryTab" ) )
 		Hud_SetSelected( Hud_GetChild( menu, "HistoryTab" ), tab == CAT_TAB_HISTORY )
+	if ( Hud_HasChild( menu, "RoutinesTab" ) )
+		Hud_SetSelected( Hud_GetChild( menu, "RoutinesTab" ), tab == CAT_TAB_ROUTINES )
+}
+
+void function CAT_UI_OnRoutinesTabClick( var button )
+{
+	if ( file.routinesMenu != null && GetActiveMenu() == file.routinesMenu )
+		return
+	CAT_UI_FlushSettings()
+	CAT_UI_ShowRoutines()
 }
 
 void function CAT_UI_OnChallengesTabClick( var button )
@@ -1135,6 +1803,35 @@ void function CAT_InitMainMenu( var menu )
 	}
 
 	Hud_AddEventHandler( Hud_GetChild( menu, "WeaponSelector" ), UIE_CLICK, CAT_UI_OnWeaponSelectorClick )
+
+	// Quick access to saved loadouts under "Current weapon". Optional.
+	file.mainHasQuickLoadouts = Hud_HasChild( menu, "LoadoutQuick0" ) && Hud_HasChild( menu, "LoadoutQuick" + ( CAT_LOADOUT_QUICK - 1 ) )
+	if ( file.mainHasQuickLoadouts )
+	{
+		for ( int i = 0; i < CAT_LOADOUT_QUICK; i++ )
+			Hud_AddEventHandler( Hud_GetChild( menu, "LoadoutQuick" + i ), UIE_CLICK, CAT_Main_OnQuickLoadoutClick )
+	}
+}
+
+void function CAT_Main_RefreshQuickLoadouts()
+{
+	if ( !file.mainHasQuickLoadouts )
+		return
+	for ( int i = 0; i < CAT_LOADOUT_QUICK; i++ )
+	{
+		var button = Hud_GetChild( file.mainMenu, "LoadoutQuick" + i )
+		CATLoadout lo = CAT_ST_GetLoadout( i )
+		CAT_UI_SetButtonText( button, lo.used ? lo.name : "" )
+		Hud_SetVisible( button, lo.used )
+		Hud_SetEnabled( button, lo.used )
+	}
+}
+
+void function CAT_Main_OnQuickLoadoutClick( var button )
+{
+	int slot = int( Hud_GetScriptID( button ) )
+	string status = CAT_UI_EquipSavedLoadout( slot )
+	Hud_SetText( Hud_GetChild( file.mainMenu, "DrillHint" ), status )
 }
 
 // Drill buttons follow the registry order: DrillButton0..7 = original column 1,
@@ -1176,6 +1873,7 @@ void function CAT_UI_RefreshMainMenu()
 	Hud_SetText( Hud_GetChild( menu, "DrillHint" ), "" )
 	Hud_SetText( Hud_GetChild( menu, "DummiesKilledCounter" ), "Dummies killed this session: " + file.sessionKills.tostring() )
 	Hud_SetText( Hud_GetChild( menu, "CurrentWeapon" ), CAT_UI_CurrentWeaponText() )
+	CAT_Main_RefreshQuickLoadouts()
 	CAT_UI_SetTabsSelected( menu, CAT_TAB_CHALLENGES )
 }
 
@@ -1572,6 +2270,51 @@ void function CAT_InitResultsMenu( var menu )
 	AddMenuEventHandler( menu, eUIEvent.MENU_NAVIGATE_BACK, CAT_Results_OnNavigateBack )
 	Hud_AddEventHandler( Hud_GetChild( menu, "RestartButton" ), UIE_CLICK, CAT_Results_OnRestartClick )
 	Hud_AddEventHandler( Hud_GetChild( menu, "MainMenuButton" ), UIE_CLICK, CAT_Results_OnMainMenuClick )
+
+	// Playlist strip (optional; the playlist still runs without it).
+	file.resultsHasPlaylist = Hud_HasChild( menu, "PlaylistFrame" ) && Hud_HasChild( menu, "PlaylistInfo" ) && Hud_HasChild( menu, "PlaylistNext" )
+		&& Hud_HasChild( menu, "NextNowButton" ) && Hud_HasChild( menu, "StopPlaylistButton" )
+	if ( file.resultsHasPlaylist )
+	{
+		Hud_AddEventHandler( Hud_GetChild( menu, "NextNowButton" ), UIE_CLICK, CAT_Results_OnNextNowClick )
+		Hud_AddEventHandler( Hud_GetChild( menu, "StopPlaylistButton" ), UIE_CLICK, CAT_Results_OnStopPlaylistClick )
+	}
+}
+
+void function CAT_UI_RefreshPlaylistStrip()
+{
+	if ( file.resultsMenu == null || !file.resultsHasPlaylist )
+		return
+	var menu = file.resultsMenu
+	bool show = file.plActive
+	try
+	{
+		foreach ( string name in [ "PlaylistFrame", "PlaylistInfo", "PlaylistNext", "NextNowButton", "StopPlaylistButton" ] )
+			Hud_SetVisible( Hud_GetChild( menu, name ), show )
+		Hud_SetEnabled( Hud_GetChild( menu, "NextNowButton" ), show )
+		Hud_SetEnabled( Hud_GetChild( menu, "StopPlaylistButton" ), show )
+		if ( show )
+		{
+			Hud_SetText( Hud_GetChild( menu, "PlaylistInfo" ), CAT_UI_PL_InfoText() )
+			Hud_SetText( Hud_GetChild( menu, "PlaylistNext" ), CAT_UI_PL_NextText( true ) )
+			CAT_UI_SetButtonText( Hud_GetChild( menu, "NextNowButton" ), CAT_UI_PL_IsLastRun() ? "SUMMARY NOW" : "NEXT NOW" )
+		}
+	}
+	catch ( errStrip )
+	{
+		printt( CAT_LOG, "playlist strip refresh failed:", errStrip )
+	}
+}
+
+void function CAT_Results_OnNextNowClick( var button )
+{
+	CAT_UI_PL_Continue()
+}
+
+void function CAT_Results_OnStopPlaylistClick( var button )
+{
+	CAT_UI_PL_Stop()
+	EmitUISound( "UI_Menu_Accept" )
 }
 
 array<string> function CAT_UI_ResultLines()
@@ -1610,6 +2353,7 @@ void function CAT_UI_RefreshResultsMenu()
 	Hud_SetText( Hud_GetChild( menu, "ShotsHitResultFinal2" ), r.isNewBest ? "Hits" : "" )
 	Hud_SetText( Hud_GetChild( menu, "ShotsHitResultFinalWasNotNew" ), r.isNewBest ? "" : hits )
 	Hud_SetText( Hud_GetChild( menu, "ShotsHitResultFinal2WasNotNew" ), r.isNewBest ? "" : "Hits" )
+	CAT_UI_RefreshPlaylistStrip()
 }
 
 void function CAT_Results_OnRestartClick( var button )
@@ -1625,6 +2369,677 @@ void function CAT_Results_OnMainMenuClick( var button )
 void function CAT_Results_OnNavigateBack()
 {
 	CAT_UI_ResultsToMain()
+}
+
+// ---- routines (presets + playlists) ----
+
+void function CAT_InitRoutinesMenu( var menu )
+{
+	AddMenuEventHandler( menu, eUIEvent.MENU_NAVIGATE_BACK, CAT_Routines_OnNavigateBack )
+	CAT_UI_InitHeader( menu )
+
+	Hud_AddEventHandler( Hud_GetChild( menu, "NewPresetButton" ), UIE_CLICK, CAT_Routines_OnNewPresetClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "NewPlaylistButton" ), UIE_CLICK, CAT_Routines_OnNewPlaylistClick )
+	for ( int i = 0; i < CAT_PRESET_ROWS; i++ )
+	{
+		Hud_AddEventHandler( Hud_GetChild( menu, "PresetRun" + i ), UIE_CLICK, CAT_Routines_OnPresetRunClick )
+		Hud_AddEventHandler( Hud_GetChild( menu, "PresetEdit" + i ), UIE_CLICK, CAT_Routines_OnPresetEditClick )
+		Hud_AddEventHandler( Hud_GetChild( menu, "PresetDelete" + i ), UIE_CLICK, CAT_Routines_OnPresetDeleteClick )
+	}
+	for ( int i = 0; i < CAT_PLAYLIST_ROWS; i++ )
+	{
+		Hud_AddEventHandler( Hud_GetChild( menu, "PlaylistRun" + i ), UIE_CLICK, CAT_Routines_OnPlaylistRunClick )
+		Hud_AddEventHandler( Hud_GetChild( menu, "PlaylistEdit" + i ), UIE_CLICK, CAT_Routines_OnPlaylistEditClick )
+		Hud_AddEventHandler( Hud_GetChild( menu, "PlaylistDelete" + i ), UIE_CLICK, CAT_Routines_OnPlaylistDeleteClick )
+	}
+
+	Hud_AddEventHandler( Hud_GetChild( menu, "DrillPrev" ), UIE_CLICK, CAT_Editor_OnDrillPrevClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "DrillNext" ), UIE_CLICK, CAT_Editor_OnDrillNextClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "LoadoutPrev" ), UIE_CLICK, CAT_Editor_OnLoadoutPrevClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "LoadoutNext" ), UIE_CLICK, CAT_Editor_OnLoadoutNextClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "CaptureButton" ), UIE_CLICK, CAT_Editor_OnCaptureClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "RepeatsPrev" ), UIE_CLICK, CAT_Editor_OnRepeatsPrevClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "RepeatsNext" ), UIE_CLICK, CAT_Editor_OnRepeatsNextClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "AddPrev" ), UIE_CLICK, CAT_Editor_OnAddPrevClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "AddNext" ), UIE_CLICK, CAT_Editor_OnAddNextClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "AddButton" ), UIE_CLICK, CAT_Editor_OnAddStepClick )
+	for ( int i = 0; i < CAT_STEP_ROWS; i++ )
+	{
+		Hud_AddEventHandler( Hud_GetChild( menu, "StepUp" + i ), UIE_CLICK, CAT_Editor_OnStepUpClick )
+		Hud_AddEventHandler( Hud_GetChild( menu, "StepDown" + i ), UIE_CLICK, CAT_Editor_OnStepDownClick )
+		Hud_AddEventHandler( Hud_GetChild( menu, "StepRemove" + i ), UIE_CLICK, CAT_Editor_OnStepRemoveClick )
+	}
+	Hud_AddEventHandler( Hud_GetChild( menu, "EditorSave" ), UIE_CLICK, CAT_Editor_OnSaveClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "EditorCancel" ), UIE_CLICK, CAT_Editor_OnCancelClick )
+}
+
+void function CAT_Routines_SetStatus( string text )
+{
+	if ( file.routinesMenu == null )
+		return
+	Hud_SetText( Hud_GetChild( file.routinesMenu, "RoutinesStatus" ), text )
+}
+
+void function CAT_UI_RefreshRoutinesMenu()
+{
+	var menu = file.routinesMenu
+	CAT_UI_SetTabsSelected( menu, CAT_TAB_ROUTINES )
+
+	int presets = 0
+	for ( int i = 0; i < CAT_PRESET_ROWS; i++ )
+	{
+		CATPreset p = CAT_ST_GetPreset( i )
+		bool show = p.used
+		if ( show )
+			presets++
+		Hud_SetText( Hud_GetChild( menu, "PresetName" + i ), show ? CAT_UI_PresetLabel( p ) : "" )
+		Hud_SetVisible( Hud_GetChild( menu, "PresetFrame" + i ), show )
+		Hud_SetVisible( Hud_GetChild( menu, "PresetName" + i ), show )
+		foreach ( string prefix in [ "PresetRun", "PresetEdit", "PresetDelete" ] )
+		{
+			var button = Hud_GetChild( menu, prefix + i )
+			Hud_SetVisible( button, show )
+			Hud_SetEnabled( button, show )
+		}
+		CAT_UI_SetButtonText( Hud_GetChild( menu, "PresetDelete" + i ), CAT_Routines_IsPendingDelete( "pr" + i ) ? "SURE?" : "DELETE" )
+	}
+	Hud_SetVisible( Hud_GetChild( menu, "PresetsEmpty" ), presets == 0 )
+
+	int playlists = 0
+	for ( int i = 0; i < CAT_PLAYLIST_ROWS; i++ )
+	{
+		CATPlaylist pl = CAT_ST_GetPlaylist( i )
+		bool show = pl.used
+		if ( show )
+			playlists++
+		Hud_SetText( Hud_GetChild( menu, "PlaylistName" + i ), show ? CAT_UI_PlaylistLabel( pl ) : "" )
+		Hud_SetVisible( Hud_GetChild( menu, "PlaylistFrame" + i ), show )
+		Hud_SetVisible( Hud_GetChild( menu, "PlaylistName" + i ), show )
+		foreach ( string prefix in [ "PlaylistRun", "PlaylistEdit", "PlaylistDelete" ] )
+		{
+			var button = Hud_GetChild( menu, prefix + i )
+			Hud_SetVisible( button, show )
+			Hud_SetEnabled( button, show )
+		}
+		CAT_UI_SetButtonText( Hud_GetChild( menu, "PlaylistDelete" + i ), CAT_Routines_IsPendingDelete( "pl" + i ) ? "SURE?" : "DELETE" )
+	}
+	Hud_SetVisible( Hud_GetChild( menu, "PlaylistsEmpty" ), playlists == 0 )
+
+	CAT_Editor_Refresh()
+}
+
+void function CAT_Routines_OnNavigateBack()
+{
+	if ( file.editorMode != eCATEditor.NONE )
+	{
+		file.editorMode = eCATEditor.NONE
+		CAT_UI_RefreshRoutinesMenu()
+		return
+	}
+	CAT_UI_ShowMain()
+}
+
+bool function CAT_Routines_IsPendingDelete( string key )
+{
+	return file.pendingDeleteKey == key && UITime() - file.pendingDeleteTime < CAT_DELETE_CONFIRM_TIME
+}
+
+// First click arms, a second click within CAT_DELETE_CONFIRM_TIME deletes.
+bool function CAT_Routines_ConfirmDelete( string key )
+{
+	if ( CAT_Routines_IsPendingDelete( key ) )
+	{
+		file.pendingDeleteKey = ""
+		return true
+	}
+	file.pendingDeleteKey = key
+	file.pendingDeleteTime = UITime()
+	return false
+}
+
+void function CAT_Routines_OnPresetRunClick( var button )
+{
+	CAT_Routines_SetStatus( CAT_UI_RunPreset( int( Hud_GetScriptID( button ) ) ) )
+}
+
+void function CAT_Routines_OnPlaylistRunClick( var button )
+{
+	CAT_Routines_SetStatus( CAT_UI_RunPlaylist( int( Hud_GetScriptID( button ) ) ) )
+}
+
+void function CAT_Routines_OnPresetDeleteClick( var button )
+{
+	int index = int( Hud_GetScriptID( button ) )
+	CATPreset p = CAT_ST_GetPreset( index )
+	if ( !p.used )
+		return
+	if ( CAT_Routines_ConfirmDelete( "pr" + index ) )
+	{
+		CAT_ST_DeletePreset( index )
+		if ( file.editorMode == eCATEditor.PRESET && file.editIndex == index )
+			file.editorMode = eCATEditor.NONE
+		CAT_Routines_SetStatus( "Deleted preset " + p.name + ". Playlist steps that used it are skipped." )
+	}
+	else
+	{
+		CAT_Routines_SetStatus( "Click SURE? to delete preset " + p.name )
+	}
+	CAT_UI_RefreshRoutinesMenu()
+}
+
+void function CAT_Routines_OnPlaylistDeleteClick( var button )
+{
+	int index = int( Hud_GetScriptID( button ) )
+	CATPlaylist pl = CAT_ST_GetPlaylist( index )
+	if ( !pl.used )
+		return
+	if ( CAT_Routines_ConfirmDelete( "pl" + index ) )
+	{
+		CAT_ST_DeletePlaylist( index )
+		if ( file.editorMode == eCATEditor.PLAYLIST && file.editIndex == index )
+			file.editorMode = eCATEditor.NONE
+		CAT_Routines_SetStatus( "Deleted playlist " + pl.name )
+	}
+	else
+	{
+		CAT_Routines_SetStatus( "Click SURE? to delete playlist " + pl.name )
+	}
+	CAT_UI_RefreshRoutinesMenu()
+}
+
+array<int> function CAT_UI_CurrentSettingValues()
+{
+	array<int> values
+	foreach ( string key in CAT_SettingKeys() )
+		values.append( CAT_UI_GetSetting( key ) )
+	return values
+}
+
+void function CAT_Routines_OnNewPresetClick( var button )
+{
+	int slot = CAT_ST_FirstFreePreset()
+	if ( slot < 0 )
+	{
+		CAT_Routines_SetStatus( "All " + string( CAT_ST_PRESETS ) + " preset slots are used - delete one first" )
+		return
+	}
+	array<CATDrillDef> drills = CAT_UI_EnabledDrills()
+	file.editorMode = eCATEditor.PRESET
+	file.editIndex = -1
+	file.edDrillId = drills.len() > 0 ? drills[0].id : 0
+	file.edLoadout = 0
+	file.edValues = CAT_UI_CurrentSettingValues()
+	CAT_Editor_Open( "NEW PRESET", "Preset " + ( slot + 1 ).tostring() )
+}
+
+void function CAT_Routines_OnPresetEditClick( var button )
+{
+	int index = int( Hud_GetScriptID( button ) )
+	CATPreset p = CAT_ST_GetPreset( index )
+	if ( !p.used )
+		return
+	file.editorMode = eCATEditor.PRESET
+	file.editIndex = index
+	file.edDrillId = p.drillId
+	file.edLoadout = p.loadoutSlot
+	file.edValues = clone p.values
+	CAT_Editor_Open( "EDIT PRESET", p.name )
+}
+
+void function CAT_Routines_OnNewPlaylistClick( var button )
+{
+	int slot = CAT_ST_FirstFreePlaylist()
+	if ( slot < 0 )
+	{
+		CAT_Routines_SetStatus( "All " + string( CAT_ST_PLAYLISTS ) + " playlist slots are used - delete one first" )
+		return
+	}
+	file.editorMode = eCATEditor.PLAYLIST
+	file.editIndex = -1
+	file.edRepeats = 1
+	file.edSteps.clear()
+	file.edAddPreset = CAT_Editor_CyclePreset( -1, 1 )
+	CAT_Editor_Open( "NEW PLAYLIST", "Playlist " + ( slot + 1 ).tostring() )
+}
+
+void function CAT_Routines_OnPlaylistEditClick( var button )
+{
+	int index = int( Hud_GetScriptID( button ) )
+	CATPlaylist pl = CAT_ST_GetPlaylist( index )
+	if ( !pl.used )
+		return
+	file.editorMode = eCATEditor.PLAYLIST
+	file.editIndex = index
+	file.edRepeats = pl.repeats
+	file.edSteps = clone pl.steps
+	file.edAddPreset = CAT_Editor_CyclePreset( -1, 1 )
+	CAT_Editor_Open( "EDIT PLAYLIST", pl.name )
+}
+
+// ---- routines editor (right half of routines.menu) ----
+
+void function CAT_Editor_Open( string title, string name )
+{
+	var menu = file.routinesMenu
+	file.pendingDeleteKey = ""
+	Hud_SetText( Hud_GetChild( menu, "EditorTitle" ), title )
+	Hud_SetText( Hud_GetChild( menu, "EditorStatus" ), "" )
+	Hud_SetUTF8Text( Hud_GetChild( menu, "NameEntry" ), name )
+	CAT_Routines_SetStatus( "" )
+	CAT_UI_RefreshRoutinesMenu()
+}
+
+void function CAT_Editor_SetStatus( string text )
+{
+	Hud_SetText( Hud_GetChild( file.routinesMenu, "EditorStatus" ), text )
+}
+
+void function CAT_Editor_ShowClass( string classname, bool show )
+{
+	foreach ( var elem in GetElementsByClassname( file.routinesMenu, classname ) )
+	{
+		Hud_SetVisible( elem, show )
+		Hud_SetEnabled( elem, show )
+	}
+}
+
+void function CAT_Editor_Refresh()
+{
+	var menu = file.routinesMenu
+	int mode = file.editorMode
+	CAT_Editor_ShowClass( "EditorAll", mode != eCATEditor.NONE )
+	CAT_Editor_ShowClass( "PresetEditor", mode == eCATEditor.PRESET )
+	CAT_Editor_ShowClass( "PlaylistEditor", mode == eCATEditor.PLAYLIST )
+
+	if ( mode == eCATEditor.PRESET )
+	{
+		Hud_SetText( Hud_GetChild( menu, "DrillValue" ), CAT_IsValidDrill( file.edDrillId ) ? CAT_GetDrill( file.edDrillId ).name : "-" )
+		string loadout = "Keep current weapons"
+		if ( file.edLoadout > 0 )
+		{
+			CATLoadout lo = CAT_ST_GetLoadout( file.edLoadout - 1 )
+			loadout = lo.used ? CAT_UI_LoadoutLabel( lo ) : "(deleted loadout - keeps current)"
+		}
+		Hud_SetText( Hud_GetChild( menu, "LoadoutValue" ), loadout )
+		array<string> lines = CAT_UI_SettingsSummary( file.edValues )
+		for ( int i = 0; i < 4; i++ )
+			Hud_SetText( Hud_GetChild( menu, "PresetSettings" + i ), i < lines.len() ? lines[i] : "" )
+	}
+	else if ( mode == eCATEditor.PLAYLIST )
+	{
+		Hud_SetText( Hud_GetChild( menu, "RepeatsValue" ), file.edRepeats == 1 ? "Once" : file.edRepeats.tostring() + " times" )
+		string addText = "(no presets saved)"
+		if ( file.edAddPreset >= 0 )
+		{
+			CATPreset p = CAT_ST_GetPreset( file.edAddPreset )
+			if ( p.used )
+				addText = p.name
+		}
+		Hud_SetText( Hud_GetChild( menu, "AddValue" ), addText )
+		Hud_SetText( Hud_GetChild( menu, "StepsLabel" ), "Steps (" + file.edSteps.len().tostring() + "/" + string( CAT_ST_MAX_STEPS ) + ")" )
+		int count = file.edSteps.len()
+		for ( int i = 0; i < CAT_STEP_ROWS; i++ )
+		{
+			bool show = i < count
+			string text = ""
+			if ( show )
+			{
+				CATPreset p = CAT_ST_GetPreset( file.edSteps[i] )
+				text = ( i + 1 ).tostring() + ".  " + ( p.used ? CAT_UI_PresetLabel( p ) : "(deleted preset - skipped)" )
+			}
+			Hud_SetText( Hud_GetChild( menu, "StepText" + i ), text )
+			Hud_SetVisible( Hud_GetChild( menu, "StepText" + i ), show )
+			foreach ( string prefix in [ "StepUp", "StepDown", "StepRemove" ] )
+			{
+				var button = Hud_GetChild( menu, prefix + i )
+				bool usable = show
+				if ( prefix == "StepUp" && i == 0 )
+					usable = false
+				if ( prefix == "StepDown" && i == count - 1 )
+					usable = false
+				Hud_SetVisible( button, usable )
+				Hud_SetEnabled( button, usable )
+			}
+		}
+	}
+}
+
+array<string> function CAT_UI_SettingsSummary( array<int> values )
+{
+	array<string> keys = CAT_SettingKeys()
+	table<string, string> text = {}
+	for ( int i = 0; i < keys.len(); i++ )
+	{
+		int v = i < values.len() ? values[i] : CAT_DefaultSetting( keys[i] )
+		text[ keys[i] ] <- CAT_UI_SettingLabel( keys[i], CAT_ClampSetting( keys[i], v ) )
+	}
+	array<string> lines
+	lines.append( text[ "duration" ] + "     " + text[ "infinite" ] )
+	lines.append( text[ "shield" ] + "     " + text[ "speed" ] )
+	lines.append( text[ "distance" ] + "     " + text[ "health" ] + "     " + text[ "color" ] )
+	lines.append( text[ "immortal" ] + "     " + text[ "reloadhit" ] + "     " + text[ "reloadkill" ] )
+	return lines
+}
+
+void function CAT_Editor_CycleDrill( int dir )
+{
+	array<CATDrillDef> drills = CAT_UI_EnabledDrills()
+	if ( drills.len() == 0 )
+		return
+	int at = 0
+	for ( int i = 0; i < drills.len(); i++ )
+	{
+		if ( drills[i].id == file.edDrillId )
+			at = i
+	}
+	at = ( at + dir + drills.len() ) % drills.len()
+	file.edDrillId = drills[ at ].id
+	CAT_Editor_Refresh()
+}
+
+void function CAT_Editor_OnDrillPrevClick( var button )
+{
+	CAT_Editor_CycleDrill( -1 )
+}
+
+void function CAT_Editor_OnDrillNextClick( var button )
+{
+	CAT_Editor_CycleDrill( 1 )
+}
+
+// 0 (keep current) and the used loadout slots (1-based).
+void function CAT_Editor_CycleLoadout( int dir )
+{
+	array<int> choices = [ 0 ]
+	for ( int i = 0; i < CAT_ST_LOADOUTS; i++ )
+	{
+		CATLoadout lo = CAT_ST_GetLoadout( i )
+		if ( lo.used )
+			choices.append( i + 1 )
+	}
+	int at = choices.find( file.edLoadout )
+	if ( at < 0 )
+		at = 0
+	at = ( at + dir + choices.len() ) % choices.len()
+	file.edLoadout = choices[ at ]
+	CAT_Editor_Refresh()
+}
+
+void function CAT_Editor_OnLoadoutPrevClick( var button )
+{
+	CAT_Editor_CycleLoadout( -1 )
+}
+
+void function CAT_Editor_OnLoadoutNextClick( var button )
+{
+	CAT_Editor_CycleLoadout( 1 )
+}
+
+void function CAT_Editor_OnCaptureClick( var button )
+{
+	file.edValues = CAT_UI_CurrentSettingValues()
+	CAT_Editor_SetStatus( "Copied the current settings" )
+	EmitUISound( "UI_Menu_Accept" )
+	CAT_Editor_Refresh()
+}
+
+void function CAT_Editor_OnRepeatsPrevClick( var button )
+{
+	file.edRepeats = file.edRepeats <= 1 ? CAT_ST_MAX_REPEATS : file.edRepeats - 1
+	CAT_Editor_Refresh()
+}
+
+void function CAT_Editor_OnRepeatsNextClick( var button )
+{
+	file.edRepeats = file.edRepeats >= CAT_ST_MAX_REPEATS ? 1 : file.edRepeats + 1
+	CAT_Editor_Refresh()
+}
+
+// Next / previous used preset after "from" (-1 = none in the list).
+int function CAT_Editor_CyclePreset( int from, int dir )
+{
+	array<int> used
+	for ( int i = 0; i < CAT_ST_PRESETS; i++ )
+	{
+		CATPreset p = CAT_ST_GetPreset( i )
+		if ( p.used )
+			used.append( i )
+	}
+	if ( used.len() == 0 )
+		return -1
+	int at = used.find( from )
+	if ( at < 0 )
+		return used[0]
+	return used[ ( at + dir + used.len() ) % used.len() ]
+}
+
+void function CAT_Editor_OnAddPrevClick( var button )
+{
+	file.edAddPreset = CAT_Editor_CyclePreset( file.edAddPreset, -1 )
+	CAT_Editor_Refresh()
+}
+
+void function CAT_Editor_OnAddNextClick( var button )
+{
+	file.edAddPreset = CAT_Editor_CyclePreset( file.edAddPreset, 1 )
+	CAT_Editor_Refresh()
+}
+
+void function CAT_Editor_OnAddStepClick( var button )
+{
+	if ( file.edAddPreset < 0 || !CAT_ST_GetPreset( file.edAddPreset ).used )
+	{
+		CAT_Editor_SetStatus( "Save a preset first" )
+		return
+	}
+	if ( file.edSteps.len() >= CAT_ST_MAX_STEPS )
+	{
+		CAT_Editor_SetStatus( "A playlist has at most " + string( CAT_ST_MAX_STEPS ) + " steps" )
+		return
+	}
+	file.edSteps.append( file.edAddPreset )
+	CAT_Editor_SetStatus( "" )
+	EmitUISound( "UI_Menu_Accept" )
+	CAT_Editor_Refresh()
+}
+
+void function CAT_Editor_SwapSteps( int a, int b )
+{
+	if ( a < 0 || b < 0 || a >= file.edSteps.len() || b >= file.edSteps.len() )
+		return
+	int tmp = file.edSteps[a]
+	file.edSteps[a] = file.edSteps[b]
+	file.edSteps[b] = tmp
+	CAT_Editor_Refresh()
+}
+
+void function CAT_Editor_OnStepUpClick( var button )
+{
+	int i = int( Hud_GetScriptID( button ) )
+	CAT_Editor_SwapSteps( i, i - 1 )
+}
+
+void function CAT_Editor_OnStepDownClick( var button )
+{
+	int i = int( Hud_GetScriptID( button ) )
+	CAT_Editor_SwapSteps( i, i + 1 )
+}
+
+void function CAT_Editor_OnStepRemoveClick( var button )
+{
+	int i = int( Hud_GetScriptID( button ) )
+	if ( i < 0 || i >= file.edSteps.len() )
+		return
+	file.edSteps.remove( i )
+	CAT_Editor_Refresh()
+}
+
+void function CAT_Editor_OnCancelClick( var button )
+{
+	file.editorMode = eCATEditor.NONE
+	CAT_UI_RefreshRoutinesMenu()
+}
+
+void function CAT_Editor_OnSaveClick( var button )
+{
+	string typed = Hud_GetUTF8Text( Hud_GetChild( file.routinesMenu, "NameEntry" ) )
+
+	if ( file.editorMode == eCATEditor.PRESET )
+	{
+		int slot = file.editIndex >= 0 ? file.editIndex : CAT_ST_FirstFreePreset()
+		if ( slot < 0 )
+		{
+			CAT_Editor_SetStatus( "No free preset slot" )
+			return
+		}
+		if ( !CAT_IsValidDrill( file.edDrillId ) )
+		{
+			CAT_Editor_SetStatus( "Pick a challenge" )
+			return
+		}
+		CATPreset p
+		p.used = true
+		p.name = CAT_ST_SanitizeName( typed, "Preset " + ( slot + 1 ).tostring() )
+		p.drillId = file.edDrillId
+		p.values = clone file.edValues
+		p.loadoutSlot = file.edLoadout
+		if ( !CAT_ST_SavePreset( slot, p ) )
+		{
+			CAT_Editor_SetStatus( "Could not save (see console)" )
+			return
+		}
+		CAT_Routines_SetStatus( "Saved preset " + p.name )
+	}
+	else if ( file.editorMode == eCATEditor.PLAYLIST )
+	{
+		int slot = file.editIndex >= 0 ? file.editIndex : CAT_ST_FirstFreePlaylist()
+		if ( slot < 0 )
+		{
+			CAT_Editor_SetStatus( "No free playlist slot" )
+			return
+		}
+		if ( file.edSteps.len() == 0 )
+		{
+			CAT_Editor_SetStatus( "Add at least one step" )
+			return
+		}
+		CATPlaylist pl
+		pl.used = true
+		pl.name = CAT_ST_SanitizeName( typed, "Playlist " + ( slot + 1 ).tostring() )
+		pl.repeats = file.edRepeats
+		pl.steps = clone file.edSteps
+		if ( !CAT_ST_SavePlaylist( slot, pl ) )
+		{
+			CAT_Editor_SetStatus( "Could not save (see console)" )
+			return
+		}
+		CAT_Routines_SetStatus( "Saved playlist " + pl.name )
+	}
+	else
+	{
+		return
+	}
+
+	EmitUISound( "UI_Menu_Accept" )
+	file.editorMode = eCATEditor.NONE
+	CAT_UI_RefreshRoutinesMenu()
+}
+
+// ---- playlist summary ----
+
+void function CAT_InitSummaryMenu( var menu )
+{
+	AddMenuEventHandler( menu, eUIEvent.MENU_NAVIGATE_BACK, CAT_Summary_OnNavigateBack )
+	Hud_AddEventHandler( Hud_GetChild( menu, "MainMenuButton" ), UIE_CLICK, CAT_Summary_OnMainMenuClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "RunAgainButton" ), UIE_CLICK, CAT_Summary_OnRunAgainClick )
+}
+
+// One row per playlist step (all repeats added up), same order as CAT_SUMMARY_COLUMNS.
+array<string> function CAT_UI_SummaryCells( int i )
+{
+	CATPreset p = CAT_ST_GetPreset( file.plSteps[i] )
+	array<string> cells
+	cells.append( ( i + 1 ).tostring() )
+	cells.append( p.used ? p.name : "(deleted)" )
+	cells.append( p.used ? CAT_UI_DrillName( p.drillId ) : "-" )
+	cells.append( file.plRuns[i].tostring() )
+	cells.append( file.plHits[i].tostring() + "/" + file.plShots[i].tostring() )
+	cells.append( file.plKills[i].tostring() )
+	cells.append( CAT_UI_AccuracyOf( file.plHits[i], file.plShots[i] ) )
+	cells.append( file.plDamage[i].tostring() )
+	return cells
+}
+
+array<string> function CAT_UI_SummaryTotals()
+{
+	int runs = 0
+	int hits = 0
+	int shots = 0
+	int kills = 0
+	int damage = 0
+	for ( int i = 0; i < file.plRuns.len(); i++ )
+	{
+		runs += file.plRuns[i]
+		hits += file.plHits[i]
+		shots += file.plShots[i]
+		kills += file.plKills[i]
+		damage += file.plDamage[i]
+	}
+	array<string> cells = [ "", "TOTAL", "", runs.tostring(), hits.tostring() + "/" + shots.tostring(), kills.tostring(), CAT_UI_AccuracyOf( hits, shots ), damage.tostring() ]
+	return cells
+}
+
+void function CAT_UI_RefreshSummaryMenu()
+{
+	var menu = file.summaryMenu
+	Hud_SetText( Hud_GetChild( menu, "Title" ), "PLAYLIST COMPLETE" )
+	Hud_SetText( Hud_GetChild( menu, "Subtitle" ), file.plName + "  -  " + file.plSteps.len().tostring() + ( file.plSteps.len() == 1 ? " step" : " steps" )
+		+ ( file.plRepeats > 1 ? " x " + file.plRepeats.tostring() : "" ) )
+
+	int count = file.plSteps.len()
+	for ( int row = 0; row < CAT_SUMMARY_ROWS; row++ )
+	{
+		bool show = row < count
+		array<string> cells
+		if ( show )
+			cells = CAT_UI_SummaryCells( row )
+		Hud_SetVisible( Hud_GetChild( menu, "RowFrame" + row ), show )
+		for ( int c = 0; c < CAT_SUMMARY_COLUMNS.len(); c++ )
+		{
+			var label = Hud_GetChild( menu, "Row" + CAT_SUMMARY_COLUMNS[c] + row )
+			Hud_SetText( label, show ? cells[c] : "" )
+			Hud_SetVisible( label, show )
+		}
+	}
+	array<string> totals = CAT_UI_SummaryTotals()
+	for ( int c = 0; c < CAT_SUMMARY_COLUMNS.len(); c++ )
+		Hud_SetText( Hud_GetChild( menu, "Total" + CAT_SUMMARY_COLUMNS[c] ), totals[c] )
+}
+
+void function CAT_Summary_OnMainMenuClick( var button )
+{
+	CAT_UI_ResultsToMain()
+}
+
+void function CAT_Summary_OnNavigateBack()
+{
+	CAT_UI_ResultsToMain()
+}
+
+void function CAT_Summary_OnRunAgainClick( var button )
+{
+	CAT_UI_SummaryRunAgain()
+}
+
+void function CAT_UI_SummaryRunAgain()
+{
+	int index = file.plIndex
+	string status = CAT_UI_RunPlaylist( index )
+	if ( status != "" )
+	{
+		printt( CAT_LOG, "run again failed:", status )
+		CAT_UI_ResultsToMain()
+	}
 }
 
 // ==========================================================================
@@ -1676,6 +3091,14 @@ void function CAT_FB_MainPage()
 	SetupDevMenu( "Weapon", void function( var unused )
 	{
 		CAT_FB_Goto( CAT_FB_WeaponPage )
+	} )
+	SetupDevMenu( "Saved loadouts", void function( var unused )
+	{
+		CAT_FB_Goto( CAT_FB_LoadoutsPage )
+	} )
+	SetupDevMenu( "Routines (presets and playlists)", void function( var unused )
+	{
+		CAT_FB_Goto( CAT_FB_RoutinesPage )
 	} )
 	SetupDevMenu( "History (" + file.history.len().tostring() + ")", void function( var unused )
 	{
@@ -1819,6 +3242,22 @@ void function CAT_FB_ResultsPage()
 	foreach ( string line in CAT_UI_ResultLines() )
 		SetupDevFunc( line, CAT_FB_Noop )
 
+	// Playlist: the countdown still continues on its own (the text here is static).
+	if ( file.plActive )
+	{
+		SetupDevFunc( CAT_UI_PL_InfoText(), CAT_FB_Noop )
+		SetupDevFunc( CAT_UI_PL_NextText( false ) + " in " + string( CAT_PL_COUNTDOWN ) + " s", CAT_FB_Noop )
+		SetupDevFunc( CAT_UI_PL_IsLastRun() ? "Summary now" : "Next now", void function( var unused )
+		{
+			CAT_UI_PL_Continue()
+		} )
+		SetupDevFunc( "Stop playlist", void function( var unused )
+		{
+			CAT_UI_PL_Stop()
+			CAT_FB_Goto( CAT_FB_ResultsPage )
+		} )
+	}
+
 	SetupDevFunc( "Restart", void function( var unused )
 	{
 		CAT_UI_ResultsRestart()
@@ -1827,4 +3266,166 @@ void function CAT_FB_ResultsPage()
 	{
 		CAT_UI_ResultsToMain()
 	} )
+}
+
+void function CAT_FB_SummaryPage()
+{
+	SetupDevFunc( "Playlist complete: " + file.plName, CAT_FB_Noop )
+	for ( int i = 0; i < file.plSteps.len(); i++ )
+	{
+		array<string> cells = CAT_UI_SummaryCells( i )
+		SetupDevFunc( cells[0] + ". " + cells[1] + " (" + cells[2] + ")  |  runs " + cells[3] + "  |  hits " + cells[4] + "  |  kills " + cells[5]
+			+ "  |  " + cells[6] + "  |  dmg " + cells[7], CAT_FB_Noop )
+	}
+	array<string> totals = CAT_UI_SummaryTotals()
+	SetupDevFunc( "Total  |  runs " + totals[3] + "  |  hits " + totals[4] + "  |  kills " + totals[5] + "  |  " + totals[6] + "  |  dmg " + totals[7], CAT_FB_Noop )
+	SetupDevFunc( "Run again", void function( var unused )
+	{
+		CAT_UI_SummaryRunAgain()
+	} )
+	SetupDevFunc( "Main menu", void function( var unused )
+	{
+		CAT_UI_ResultsToMain()
+	} )
+}
+
+// "Confirm / Cancel" page; both go back to returnPage.
+void function CAT_FB_ConfirmPage( string what, void functionref() action, void functionref() returnPage )
+{
+	SetupDevFunc( "Confirm: " + what, void function( var unused ) : ( action, returnPage )
+	{
+		action()
+		CAT_FB_Goto( returnPage )
+	} )
+	SetupDevFunc( "Cancel", void function( var unused ) : ( returnPage )
+	{
+		CAT_FB_Goto( returnPage )
+	} )
+}
+
+void function CAT_FB_LoadoutsPage()
+{
+	SetupDevFunc( "<< Back to Aim Trainer", void function( var unused )
+	{
+		CAT_UI_ShowMain()
+	} )
+	SetupDevFunc( "Save current loadout to a free slot", void function( var unused )
+	{
+		printt( CAT_LOG, CAT_UI_SaveCurrentLoadout( "" ) )
+		CAT_FB_Goto( CAT_FB_LoadoutsPage )
+	} )
+	SetupDevFunc( CAT_UI_LoadoutText(), CAT_FB_Noop )
+
+	for ( int i = 0; i < CAT_ST_LOADOUTS; i++ )
+	{
+		CATLoadout lo = CAT_ST_GetLoadout( i )
+		if ( !lo.used )
+			continue
+		int slot = i
+		string label = CAT_UI_LoadoutLabel( lo )
+		SetupDevFunc( "Equip: " + label, void function( var unused ) : ( slot )
+		{
+			printt( CAT_LOG, CAT_UI_EquipSavedLoadout( slot ) )
+			CAT_UI_ShowMain()
+		} )
+		SetupDevMenu( "Delete: " + lo.name, void function( var unused ) : ( slot, label )
+		{
+			CAT_FB_Goto( void function() : ( slot, label )
+			{
+				CAT_FB_ConfirmPage( "delete loadout " + label, void function() : ( slot ) { CAT_ST_DeleteLoadout( slot ) }, CAT_FB_LoadoutsPage )
+			} )
+		} )
+	}
+}
+
+// Presets run / delete / create from the current settings; playlists run /
+// delete. Editing presets and creating / editing playlists need the custom
+// routines menu.
+void function CAT_FB_RoutinesPage()
+{
+	SetupDevFunc( "<< Back to Aim Trainer", void function( var unused )
+	{
+		CAT_UI_ShowMain()
+	} )
+	SetupDevMenu( "New preset from the current settings", void function( var unused )
+	{
+		CAT_FB_Goto( CAT_FB_NewPresetPage )
+	} )
+
+	for ( int i = 0; i < CAT_ST_PRESETS; i++ )
+	{
+		CATPreset p = CAT_ST_GetPreset( i )
+		if ( !p.used )
+			continue
+		int index = i
+		string label = CAT_UI_PresetLabel( p )
+		SetupDevFunc( "Run preset: " + label, void function( var unused ) : ( index )
+		{
+			string status = CAT_UI_RunPreset( index )
+			if ( status != "" )
+				printt( CAT_LOG, status )
+		} )
+		SetupDevMenu( "Delete preset: " + p.name, void function( var unused ) : ( index, label )
+		{
+			CAT_FB_Goto( void function() : ( index, label )
+			{
+				CAT_FB_ConfirmPage( "delete preset " + label, void function() : ( index ) { CAT_ST_DeletePreset( index ) }, CAT_FB_RoutinesPage )
+			} )
+		} )
+	}
+
+	for ( int i = 0; i < CAT_ST_PLAYLISTS; i++ )
+	{
+		CATPlaylist pl = CAT_ST_GetPlaylist( i )
+		if ( !pl.used )
+			continue
+		int index = i
+		string label = CAT_UI_PlaylistLabel( pl )
+		SetupDevFunc( "Run playlist: " + label, void function( var unused ) : ( index )
+		{
+			string status = CAT_UI_RunPlaylist( index )
+			if ( status != "" )
+				printt( CAT_LOG, status )
+		} )
+		SetupDevMenu( "Delete playlist: " + pl.name, void function( var unused ) : ( index, label )
+		{
+			CAT_FB_Goto( void function() : ( index, label )
+			{
+				CAT_FB_ConfirmPage( "delete playlist " + label, void function() : ( index ) { CAT_ST_DeletePlaylist( index ) }, CAT_FB_RoutinesPage )
+			} )
+		} )
+	}
+
+	SetupDevFunc( "(Editing presets and making playlists needs the custom ROUTINES menu)", CAT_FB_Noop )
+}
+
+// Saves the current settings as "Preset N" for the chosen challenge.
+void function CAT_FB_NewPresetPage()
+{
+	SetupDevFunc( "<< Back to Routines", void function( var unused )
+	{
+		CAT_FB_Goto( CAT_FB_RoutinesPage )
+	} )
+	int slot = CAT_ST_FirstFreePreset()
+	if ( slot < 0 )
+	{
+		SetupDevFunc( "All " + string( CAT_ST_PRESETS ) + " preset slots are used - delete one first", CAT_FB_Noop )
+		return
+	}
+	foreach ( CATDrillDef d in CAT_UI_EnabledDrills() )
+	{
+		int drillId = d.id
+		SetupDevFunc( "Save as Preset " + ( slot + 1 ).tostring() + ": " + CAT_UI_DrillLabel( d ), void function( var unused ) : ( slot, drillId )
+		{
+			CATPreset p
+			p.used = true
+			p.name = "Preset " + ( slot + 1 ).tostring()
+			p.drillId = drillId
+			p.values = CAT_UI_CurrentSettingValues()
+			p.loadoutSlot = 0
+			if ( !CAT_ST_SavePreset( slot, p ) )
+				printt( CAT_LOG, "could not save the preset" )
+			CAT_FB_Goto( CAT_FB_RoutinesPage )
+		} )
+	}
 }
