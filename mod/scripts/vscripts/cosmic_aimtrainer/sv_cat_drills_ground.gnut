@@ -217,14 +217,14 @@ void function CATG_StrafeMovement( entity ai, entity player )
 		int random = RandomIntRangeInclusive( 1, 10 )
 		if ( random >= 9 )
 		{
-			CATG_PlayAct( ai, "ACT_STAND", rate )
+			CATG_PlayAct( ai, "ACT_IDLE", rate )
 			wait RandomFloatRange( 0.05, 0.25 ) * waitScale
 		}
 		else
 		{
-			CATG_PlayAct( ai, "ACT_RUN_RIGHT", rate )
+			CATG_PlayAct( ai, "ACT_SPRINT_RIGHT", rate )
 			wait RandomFloatRange( 0.2, 0.75 ) * waitScale
-			CATG_PlayAct( ai, "ACT_RUN_LEFT", rate )
+			CATG_PlayAct( ai, "ACT_SPRINT_LEFT", rate )
 			wait RandomFloatRange( 0.2, 0.75 ) * waitScale
 		}
 	}
@@ -398,8 +398,7 @@ void function CATG_Drill_Arcstars( entity player )
 			array<vector> ring = CATG_Ring( player.GetOrigin(), 100.0 * CAT_SpawnDistance( player ), 15 )
 			vector pos = CATG_DropToGround( ring.getrandom() )
 
-			entity dummy = CAT_SpawnDummy( player, pos, spawnAngles, false, "npc_dummie_combat_trainer", false )
-			DispatchSpawn( dummy )
+			entity dummy = CAT_SpawnDummy( player, pos, spawnAngles, true, CAT_DUMMY_AISETTINGS, false )
 			CAT_SetupCommonDummy( player, dummy, false ) // original: health only, no shields
 			AddEntityCallback_OnDamaged( dummy, CATG_Arcstar_DummyDamaged )
 

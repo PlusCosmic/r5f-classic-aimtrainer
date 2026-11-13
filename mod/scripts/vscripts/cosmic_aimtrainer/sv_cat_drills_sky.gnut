@@ -174,11 +174,7 @@ void function CAT_Sky_CurveMove( entity mover, vector moveTo, float xFrom, float
 void function CAT_Sky_OnAlwaysImmortalDamaged( entity dummy, var damageInfo )
 {
 	CAT_OnTargetDamaged_Default( dummy, damageInfo )
-
-	dummy.SetShieldHealth( dummy.GetShieldHealthMax() )
-	dummy.SetHealth( dummy.GetMaxHealth() )
-	if ( DamageInfo_GetDamage( damageInfo ) >= float( dummy.GetHealth() + dummy.GetShieldHealth() ) )
-		DamageInfo_SetDamage( damageInfo, 0 )
+	CAT_KeepTargetAlive( dummy, damageInfo )
 }
 
 // Original OnFloatingDummyDamaged: always immortal, only hits while airborne
@@ -199,9 +195,7 @@ void function CAT_Sky_OnFloatingDamaged( entity dummy, var damageInfo )
 		CAT_AddDamageOnly( attacker, int( damage ), isCrit )
 
 	// Always immortal. The original only refilled health (shields can break).
-	dummy.SetHealth( dummy.GetMaxHealth() )
-	if ( damage >= float( dummy.GetHealth() + dummy.GetShieldHealth() ) )
-		DamageInfo_SetDamage( damageInfo, 0 )
+	CAT_KeepTargetAlive( dummy, damageInfo, false )
 
 	// Knock the target in a random direction.
 	vector angles2 = VectorToAngles( attacker.GetOrigin() - dummy.GetOrigin() )
@@ -260,7 +254,7 @@ void function CAT_Sky_StartFloatingTarget( entity player )
 	{
 		vector ang = <0, player.GetAngles().y, 0>
 		vector pos = player.GetOrigin() + AnglesToForward( ang ) * 100.0 * CAT_SpawnDistance( player )
-		entity dummy = CAT_SpawnDummy( player, pos, <0, 90, 0>, true, "npc_dummie_combat_trainer", false )
+		entity dummy = CAT_SpawnDummy( player, pos, <0, 90, 0>, true, CAT_DUMMY_AISETTINGS, false )
 		AddEntityCallback_OnDamaged( dummy, CAT_Sky_OnFloatingDamaged )
 		AddEntityCallback_OnKilled( dummy, CAT_OnTargetKilled_Default )
 		CAT_Sky_AttachJetTrails( player, dummy )
@@ -501,8 +495,7 @@ void function CAT_Sky_StartGrenades( entity player )
 			vector spot = center + directions[ index ] * ( 600.0 + float( RandomIntRange( 400, 700 ) ) )
 			index++
 
-			entity dummy = CAT_SpawnDummy( player, spot, CAT_Sky_FacePlayerYaw( player, spot ), false, "npc_dummie_combat_trainer", false )
-			DispatchSpawn( dummy )
+			entity dummy = CAT_SpawnDummy( player, spot, CAT_Sky_FacePlayerYaw( player, spot ), true, CAT_DUMMY_AISETTINGS, false )
 			CAT_SetupCommonDummy( player, dummy, false )
 			dummy.DisableNPCFlag( NPC_ALLOW_PATROL | NPC_ALLOW_INVESTIGATE | NPC_NEW_ENEMY_FROM_SOUND )
 			AddEntityCallback_OnDamaged( dummy, CAT_Sky_OnGrenadeDummyDamaged )
@@ -752,7 +745,7 @@ void function CAT_Sky_TapyStrafeMovement( entity player, entity dummy )
 		if ( roll < 18 )
 		{
 			mover.NonPhysicsStop()
-			CAT_Sky_PlayActivity( dummy, "ACT_STAND" )
+			CAT_Sky_PlayActivity( dummy, "ACT_IDLE" )
 			wait 0.15
 		}
 		else if ( roll < 50 )
@@ -761,7 +754,7 @@ void function CAT_Sky_TapyStrafeMovement( entity player, entity dummy )
 			index = CAT_Sky_Wrap( index + stepDir, circle.len() )
 
 			mover.NonPhysicsMoveTo( circle[ index ], 0.15, 0.0, 0.0 )
-			CAT_Sky_PlayOnly( dummy, stepDir < 0 ? "ACT_RUN_RIGHT" : "ACT_RUN_LEFT" )
+			CAT_Sky_PlayOnly( dummy, stepDir < 0 ? "ACT_SPRINT_RIGHT" : "ACT_SPRINT_LEFT" )
 			dummy.Anim_DisableUpdatePosition()
 			wait 0.12
 			dummy.Anim_Stop()
@@ -813,8 +806,7 @@ void function CAT_Sky_StartSmoothbot( entity player )
 	{
 		// First point of the high circle the movement thread builds.
 		vector pos = player.GetOrigin() + <0, 1000, 500>
-		entity dummy = CAT_SpawnDummy( player, pos, CAT_Sky_FacePlayerYaw( player, pos ), false, "npc_dummie_combat_trainer", false )
-		DispatchSpawn( dummy )
+		entity dummy = CAT_SpawnDummy( player, pos, CAT_Sky_FacePlayerYaw( player, pos ), true, CAT_DUMMY_AISETTINGS, false )
 		CAT_SetupCommonDummy( player, dummy, false )   // original left shields unset
 		AddEntityCallback_OnDamaged( dummy, CAT_Sky_OnAlwaysImmortalDamaged )
 		AddEntityCallback_OnKilled( dummy, CAT_OnTargetKilled_Default )

@@ -34,6 +34,7 @@ global function CAT_CL_GrenadeMarker
 // UI -> client (RunClientScript)
 global function CAT_CL_UI_MenuClosed
 global function CAT_CL_UI_PushSettings
+global function cosmic_aimtrainer__AimTrainer_CL_PushChallengeFlagToUI
 
 const string CAT_CL_SIGNAL_STOP_HUD = "CAT_CL_StopChallengeHud"
 const string CAT_CL_SIGNAL_STOP_HINT = "CAT_CL_StopHint"
@@ -272,6 +273,8 @@ void function CAT_CL_SetChallengeActive( bool active )
 		CAT_CL_StopChallengeHud()
 	}
 	RunUIScript( "CAT_UI_SetChallengeActive", active )
+	// Shows or hides the base Esc menu's "Finish Challenge" button.
+	RunUIScript( "SetAimTrainerChallengeInProgress", active )
 }
 
 void function CAT_CL_ChallengeStarting( int drillId, int duration )
@@ -685,4 +688,19 @@ void function CAT_CL_GrenadeMarker( entity dummy )
 	{
 		printt( CAT_LOG, "overhead_icon_generic has no 'hint' arg", e4 )
 	}
+}
+
+// --------------------------------------------------------------------------
+// The base Esc menu re-asks the client whether a challenge is running each
+// time it opens (AimTrainer_CL_PushChallengeFlagToUI, Flowstate's trainer).
+// Wrapped via mod.vdf ScriptWraps so our drills keep "Finish Challenge" shown;
+// the server-side wrap of AimTrainer_SV_FinishChallenge then ends our drill.
+void function cosmic_aimtrainer__AimTrainer_CL_PushChallengeFlagToUI( void functionref() base )
+{
+	if ( file.inited && file.challengeActive )
+	{
+		RunUIScript( "SetAimTrainerChallengeInProgress", true )
+		return
+	}
+	base()
 }

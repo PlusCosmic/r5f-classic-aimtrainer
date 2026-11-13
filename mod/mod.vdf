@@ -7,6 +7,20 @@
 	"version"		"0.1.0"
 	"realm"			"both"
 
+	"ScriptWraps"
+	{
+		"AimTrainer_SV_FinishChallenge"
+		{
+			"Function"	"cosmic_aimtrainer__AimTrainer_SV_FinishChallenge"
+			"VM"		"SERVER"
+		}
+		"AimTrainer_CL_PushChallengeFlagToUI"
+		{
+			"Function"	"cosmic_aimtrainer__AimTrainer_CL_PushChallengeFlagToUI"
+			"VM"		"CLIENT"
+		}
+	}
+
 	// Client-side settings, remembered between sessions. The client pushes them
 	// to the server whenever they change and on every level load.
 	"ConVars"

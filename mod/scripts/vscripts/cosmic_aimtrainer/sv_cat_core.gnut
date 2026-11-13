@@ -18,6 +18,7 @@
 
 global function CAT_ServerInit
 global function CAT_RegisterDrillStart
+global function cosmic_aimtrainer__AimTrainer_SV_FinishChallenge
 
 global struct CATSession
 {
@@ -40,6 +41,9 @@ global struct CATSession
 
 	CATSettings settings
 	int arenaSlot = 0
+	bool hasMenuSpot = false
+	vector menuPos
+	vector menuAng
 
 	array<entity> ents           // everything spawned for this challenge
 	array<entity> dummies        // live targets (subset of ents)
@@ -73,6 +77,7 @@ global function CAT_AddKill
 global function CAT_AddDamageOnly
 global function CAT_OnTargetDamaged_Default
 global function CAT_OnTargetKilled_Default
+global function CAT_KeepTargetAlive
 global function CAT_ApplyFakeHelmet
 global function CAT_StrafeRate
 global function CAT_StrafeWaitScale
@@ -91,6 +96,12 @@ const int CAT_MAX_ARENA_SLOTS = 8
 
 global const string CAT_DEFAULT_WEAPON = "mp_weapon_wingman"
 global const array<string> CAT_DEFAULT_MODS = [ "optic_cq_hcog_classic" ]
+
+// Flowstate's training target (AIClass dummie): it flinches when hit and the S21
+// client shows hit markers and damage numbers for it. The R5R original's
+// npc_dummie_combat_trainer (AIClass human, empty behaviour) gets neither here.
+global const string CAT_DUMMY_AISETTINGS = "npc_training_dummy"
+const int CAT_DUMMY_TEAM = 97 // Flowstate's training dummy team (MY_RANDOM_DUMMIE_TEAM)
 
 struct CATMapPositions
 {
@@ -160,10 +171,9 @@ void function CAT_LoadMapPositions()
 			file.map.startAng = <7.71, 91.67, 0.00>
 			break
 
-		// TODO: S21 versions of the original maps. The R5R coordinates are kept
-		// as a starting point but have not been checked against the new geometry.
+		// World's Edge: R5R coordinates, checked in game on the S21 map (2026-11-13).
 		case "mp_rr_desertlands_hu":
-			file.map.known = false
+			file.map.known = true
 			file.map.skyFloor = <-10020.1543, -8643.02832, 5189.92578>
 			file.map.groundPos = <12891.2783, -2391.77124, -3121.60132>
 			file.map.groundAng = <0, -157.629303, 0>
@@ -171,6 +181,8 @@ void function CAT_LoadMapPositions()
 			file.map.startAng = <0, 143.031052, 0>
 			break
 
+		// TODO: S21 versions of the original maps. The R5R coordinates are kept
+		// as a starting point but have not been checked against the new geometry.
 		case "mp_rr_canyonlands_hu":
 			file.map.known = false
 			file.map.skyFloor = <-11964.7803, -8858.25098, 17252.25>
@@ -265,14 +277,15 @@ void function CAT_SendToMenu( entity player )
 		return
 	CATSession s = file.sessions[ player ]
 
-	vector pos = file.map.startPos
-	vector ang = file.map.startAng
-	if ( !file.map.known && file.map.startPos == <0, 0, 0> )
+	// The menu spot is where survival first spawned this player: always on solid
+	// ground (the R5R start positions float above the S21 map geometry).
+	if ( !s.hasMenuSpot )
 	{
-		pos = player.GetOrigin()
-		ang = player.GetAngles()
+		s.hasMenuSpot = true
+		s.menuPos = player.GetOrigin()
+		s.menuAng = <0, player.GetAngles().y, 0>
 	}
-	CAT_TeleportPlayer( player, pos, ang )
+	CAT_TeleportPlayer( player, s.menuPos, s.menuAng )
 	CAT_EnsureLoadout( player )
 	player.FreezeControlsOnServer()
 
@@ -321,9 +334,13 @@ void function CAT_ClientCommand( entity player, array<string> args )
 			if ( s.active || args.len() < 2 )
 				return
 			if ( args[1] == "1" )
+			{
 				player.FreezeControlsOnServer()
+			}
 			else
+			{
 				player.UnfreezeControlsOnServer()
+			}
 			return
 
 		case "set":
@@ -338,10 +355,23 @@ void function CAT_ClientCommand( entity player, array<string> args )
 			CAT_GiveMenuWeapon( player, args[1], int( args[2] ), args.slice( 3 ) )
 			return
 
-		case "pos":        // dev helper for adding maps
+		case "debugdummies": // dev: 4 static dummies, left to right A-D, to bisect missing hit feedback
+			if ( GetConVarInt( "sv_cheats" ) != 1 || s.active )
+				return
+			CAT_DebugSpawnDummies( player )
+			return
+
+		case "pos":        // dev helper for adding maps: "pos [label]"
 			if ( GetConVarInt( "sv_cheats" ) != 1 )
 				return
-			printt( CAT_LOG, "pos", GetMapName(), "origin", player.GetOrigin(), "angles", player.GetAngles() )
+			{
+				// Warning() so it lands in platform/logs/server/<id>/script_warning.log
+				// (plain printt isn't written to the dedicated server's log files).
+				string label = args.len() > 1 ? args[1] : "spot"
+				vector o = player.GetOrigin()
+				vector a = player.GetAngles()
+				Warning( format( "%s pos %s %s origin <%.1f, %.1f, %.1f> angles <0, %.1f, 0>", CAT_LOG, GetMapName(), label, o.x, o.y, o.z, a.y ) )
+			}
 			return
 	}
 }
@@ -680,15 +710,27 @@ bool function CAT_PosCanContainDummy( vector origin )
 // --------------------------------------------------------------------------
 // Dummies
 
-// Creates an npc_dummie with the player's health/shield/skin settings and the
-// default damage + kill handlers. Pass dispatch=false to tweak before spawn,
-// then call DispatchSpawn and CAT_SetupCommonDummy yourself.
-entity function CAT_SpawnDummy( entity player, vector origin, vector angles, bool dispatch = true, string aiSettings = "npc_dummie_combat_trainer", bool defaultCallbacks = true )
+// Spawns a target with the player's health/shield/skin settings and the
+// default damage + kill handlers. Always returns a spawned (dispatched) NPC.
+//
+// Training dummies go through Flowstate's own SpawnNPCTrainingDummy: dummies
+// created by hand with the same AI settings got no damage events on the S21
+// client (no hit markers, damage numbers or flinch), while Flowstate's do.
+// `dispatch` is kept for call compatibility; false only skips our settings.
+entity function CAT_SpawnDummy( entity player, vector origin, vector angles, bool dispatch = true, string aiSettings = CAT_DUMMY_AISETTINGS, bool defaultCallbacks = true )
 {
 	CATSession s = file.sessions[ player ]
 
-	entity dummy = CreateNPC( "npc_dummie", 99, origin, angles )
-	SetSpawnOption_AISettings( dummy, aiSettings )
+	entity dummy = null
+	if ( aiSettings == CAT_DUMMY_AISETTINGS )
+		dummy = SpawnNPCTrainingDummy( origin, angles, 0, false, false ) // no auto ground-plant: drills move it
+
+	bool spawned = IsValid( dummy )
+	if ( !spawned )
+	{
+		dummy = CreateNPCFromAISettings( aiSettings, CAT_DUMMY_TEAM, origin, angles )
+		dummy.kv.spawnflags = ( SF_NPC_ALLOW_SPAWN_SOLID | SF_NPC_NO_PLAYER_PUSHAWAY )
+	}
 	StartParticleEffectInWorld( GetParticleSystemIndex( CAT_SPAWN_FX ), origin, angles )
 
 	s.ents.append( dummy )
@@ -700,11 +742,10 @@ entity function CAT_SpawnDummy( entity player, vector origin, vector angles, boo
 		AddEntityCallback_OnKilled( dummy, CAT_OnTargetKilled_Default )
 	}
 
-	if ( dispatch )
-	{
+	if ( !spawned )
 		DispatchSpawn( dummy )
+	if ( dispatch )
 		CAT_SetupCommonDummy( player, dummy )
-	}
 	return dummy
 }
 
@@ -719,17 +760,20 @@ void function CAT_SetupCommonDummy( entity player, entity dummy, bool withShield
 	dummy.SetMaxHealth( s.settings.health )
 	dummy.SetHealth( s.settings.health )
 
+	// No SetDamageNotifications / SetDeathNotifications / SetValidHealthBarTarget
+	// (the R5R original set them): Flowstate's own dummies don't, and with them
+	// the S21 client got no hit markers or damage numbers for our targets.
 	dummy.SetTakeDamageType( DAMAGE_YES )
-	dummy.SetDamageNotifications( true )
-	dummy.SetDeathNotifications( true )
-	dummy.SetValidHealthBarTarget( true )
 	SetObjectCanBeMeleed( dummy, true )
 
-	if ( s.settings.speed == 0 )
-	{
-		dummy.EnableNPCFlag( NPC_IGNORE_ALL | NPC_DISABLE_SENSING )
-		dummy.DisableNPCFlag( NPC_ALLOW_PATROL | NPC_ALLOW_INVESTIGATE | NPC_USE_SHOOTING_COVER )
-	}
+	// Targets only ever move by script; never let the AI wander, take cover or fight.
+	dummy.EnableNPCFlag( NPC_IGNORE_ALL | NPC_DISABLE_SENSING | NPC_NO_WEAPON_DROP )
+	dummy.DisableNPCFlag( NPC_ALLOW_PATROL | NPC_ALLOW_INVESTIGATE | NPC_USE_SHOOTING_COVER )
+
+	// Same as Flowstate's own trainer targets (FlowstateDummy_SpawnAt).
+	dummy.SetTitle( "" )
+	dummy.SetAimAssistAllowed( true )
+	AddToUltimateRealm( player, dummy )
 
 	if ( s.settings.color == 5 )
 		dummy.SetSkin( RandomIntRangeInclusive( 1, 4 ) )
@@ -855,17 +899,41 @@ void function CAT_OnTargetDamaged_Default( entity dummy, var damageInfo )
 		return
 
 	CAT_ApplyFakeHelmet( dummy, damageInfo )
+	// Shield-coloured hit markers / damage numbers, like Flowstate's dummies.
+	DamageInfo_AddDamageFlags( damageInfo, GetShieldFlagsForTrainingDummyDamage( dummy ) )
 
 	int damage = int( DamageInfo_GetDamage( damageInfo ) )
 	bool isCrit = IsValidHeadShot( damageInfo, dummy )
 	CAT_AddHit( attacker, damage, isCrit )
 
 	if ( file.sessions[ attacker ].settings.immortal )
-	{
-		DamageInfo_SetDamage( damageInfo, 0 )
+		CAT_KeepTargetAlive( dummy, damageInfo )
+}
+
+// Keeps a target alive without hiding the hit: the S21 client shows no hit
+// marker or damage number for a 0-damage hit, so never zero the damage. Top the
+// target up, cap a lethal hit so it leaves 1 HP, and refill again next frame.
+void function CAT_KeepTargetAlive( entity dummy, var damageInfo, bool refillShields = true )
+{
+	if ( refillShields )
 		dummy.SetShieldHealth( dummy.GetShieldHealthMax() )
-		dummy.SetHealth( dummy.GetMaxHealth() )
-	}
+	dummy.SetHealth( dummy.GetMaxHealth() )
+
+	float pool = float( dummy.GetHealth() + dummy.GetShieldHealth() - 1 )
+	if ( DamageInfo_GetDamage( damageInfo ) > pool )
+		DamageInfo_SetDamage( damageInfo, pool > 0.0 ? pool : 0.0 )
+
+	thread CAT_RefillTarget_Thread( dummy, refillShields )
+}
+
+void function CAT_RefillTarget_Thread( entity dummy, bool refillShields )
+{
+	WaitFrame()
+	if ( !IsAlive( dummy ) )
+		return
+	if ( refillShields )
+		dummy.SetShieldHealth( dummy.GetShieldHealthMax() )
+	dummy.SetHealth( dummy.GetMaxHealth() )
 }
 
 void function CAT_OnTargetKilled_Default( entity dummy, var damageInfo )
@@ -1033,4 +1101,62 @@ void function CAT_GiveMenuWeapon( entity player, string weaponRef, int slotIndex
 	}
 	CAT_FillWeaponAmmo( player, w )
 	player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, slot )
+}
+
+// --------------------------------------------------------------------------
+// Esc menu "Finish Challenge" (base menu_system.nut) calls the server remote
+// AimTrainer_SV_FinishChallenge, which only knows Flowstate's own trainer.
+// mod.vdf ScriptWraps routes it here so the button also ends our drills.
+// A (non-replace) wrap receives the original function as its first argument.
+
+void function cosmic_aimtrainer__AimTrainer_SV_FinishChallenge( void functionref( entity ) base, entity player )
+{
+	if ( CAT_HasSession( player ) && file.sessions[ player ].active )
+	{
+		printt( CAT_LOG, "Esc menu Finish Challenge", player.GetPlayerName() )
+		Signal( player, CAT_SIGNAL_TIME_OVER )
+		return
+	}
+	base( player )
+}
+
+// --------------------------------------------------------------------------
+// Debug: which part of our dummy setup kills the client's hit feedback?
+// Spawns four static dummies in a row in front of the player, left to right:
+//   A  Flowstate's SpawnNPCTrainingDummy only
+//   B  A + CAT_SetupCommonDummy (health, shields, skin, flags, realm)
+//   C  A + our default damage / kill callbacks
+//   D  CAT_SpawnDummy (B + C)
+void function CAT_DebugSpawnDummies( entity player )
+{
+	vector ang = <0, player.GetAngles().y, 0>
+	vector fwd = AnglesToForward( ang )
+	vector right = AnglesToRight( ang )
+	vector center = player.GetOrigin() + fwd * 400
+	vector faceAng = <0, VectorToAngles( -fwd ).y, 0>
+
+	for ( int i = 0; i < 4; i++ )
+	{
+		vector pos = CAT_OriginToGround( center + right * ( ( i - 1.5 ) * 120.0 ) + <0, 0, 200> )
+		entity d
+		if ( i == 3 )
+		{
+			d = CAT_SpawnDummy( player, pos, faceAng )
+		}
+		else
+		{
+			d = SpawnNPCTrainingDummy( pos, faceAng, 0, false, false )
+			if ( !IsValid( d ) )
+				continue
+			CAT_TrackEnt( player, d )
+			if ( i == 1 )
+				CAT_SetupCommonDummy( player, d )
+			if ( i == 2 )
+			{
+				AddEntityCallback_OnDamaged( d, CAT_OnTargetDamaged_Default )
+				AddEntityCallback_OnKilled( d, CAT_OnTargetKilled_Default )
+			}
+		}
+	}
+	Warning( CAT_LOG + " debugdummies spawned A-D for " + player.GetPlayerName() )
 }
