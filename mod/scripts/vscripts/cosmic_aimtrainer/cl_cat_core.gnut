@@ -30,9 +30,11 @@ global function CAT_CL_LiveCrits
 global function CAT_CL_LiveDamage
 global function CAT_CL_ResetLive
 global function CAT_CL_GrenadeMarker
+global function CAT_CL_HistoryAdd
 
 // UI -> client (RunClientScript)
 global function CAT_CL_UI_MenuClosed
+global function CAT_CL_UI_MenuCamera
 global function CAT_CL_UI_PushSettings
 global function cosmic_aimtrainer__AimTrainer_CL_PushChallengeFlagToUI
 
@@ -68,6 +70,26 @@ const array<string> CAT_LIVE_STATS_ELEMENTS = [
 ]
 const array<string> CAT_COUNTDOWN_ELEMENTS = [ "Countdown", "CountdownFrame" ]
 
+// Menu camera (original CoolCameraOnMenu)
+const asset CAT_CAMERA_MOVER_MODEL = $"mdl/dev/empty_model.rmdl"
+const float CAT_CAMERA_FOV = 100.0
+const float CAT_CAMERA_SHOT_TIME = 6.0      // seconds per scenic point (original)
+const float CAT_CAMERA_DRIFT = 700.0        // units the camera drifts right...
+const float CAT_CAMERA_DRIFT_TIME = 15.0    // ...over this long (cut after CAT_CAMERA_SHOT_TIME)
+const float CAT_CAMERA_ORBIT_RADIUS = 380.0 // fallback orbit around the player
+const float CAT_CAMERA_ORBIT_HEIGHT = 160.0
+const float CAT_CAMERA_ORBIT_PERIOD = 90.0  // seconds per full circle
+// Leak guard: the camera ends once no menu has been open for this long, or if
+// no menu opened at all within CAT_CAMERA_ARM_TIMEOUT.
+const float CAT_CAMERA_NO_MENU_TIME = 0.75
+const float CAT_CAMERA_ARM_TIMEOUT = 25.0
+
+struct CATCameraSpot
+{
+	vector origin
+	vector angles
+}
+
 struct
 {
 	bool inited = false
@@ -94,6 +116,14 @@ struct
 	var hintRui = null
 
 	table<string, var> hudCache = {}
+
+	// weapon class sampled during the running challenge (for the history)
+	string historyWeapon = ""
+
+	// menu camera: one thread at a time; the token tells a newer camera thread
+	// apart from an older one that is still ending
+	bool cameraRunning = false
+	int cameraToken = 0
 } file
 
 // --------------------------------------------------------------------------
@@ -241,6 +271,7 @@ void function CAT_CL_OpenMainMenu( int sessionKills )
 		thread CAT_CL_PushAllSettings_Thread()
 	}
 
+	CAT_CL_StartMenuCamera()
 	RunUIScript( "CAT_UI_OpenMainMenu", sessionKills )
 	thread CAT_CL_SendLoadoutToUI_Thread()
 }
@@ -267,7 +298,11 @@ void function CAT_CL_SendLoadoutToUI_Thread()
 void function CAT_CL_SetChallengeActive( bool active )
 {
 	file.challengeActive = active
-	if ( !active )
+	if ( active )
+	{
+		CAT_CL_StopMenuCamera()
+	}
+	else
 	{
 		file.canFinishEarly = false
 		CAT_CL_StopChallengeHud()
@@ -284,7 +319,10 @@ void function CAT_CL_ChallengeStarting( int drillId, int duration )
 	file.challengeActive = true
 	file.resultsPending = false
 	file.canFinishEarly = false
+	file.historyWeapon = ""
 
+	// Original: ChallengeStartRemoveCameras
+	CAT_CL_StopMenuCamera()
 	RunUIScript( "CAT_UI_CloseAll" )
 
 	entity player = GetLocalClientPlayer()
@@ -296,14 +334,62 @@ void function CAT_CL_ChallengeStarting( int drillId, int duration )
 
 	thread CAT_CL_DescriptionThread( drillId )
 	thread CAT_CL_ChallengeHudThread( drillId, duration )
+	thread CAT_CL_SampleWeaponThread()
 }
 
 void function CAT_CL_ShowResults( int drillId, int hits, int kills, float accuracy, int damage, int crits, int best, bool isNewBest, int totalShots )
 {
 	file.challengeActive = false
 	file.resultsPending = true
+	CAT_CL_StopMenuCamera()
 	CAT_CL_StopChallengeHud()
 	RunUIScript( "CAT_UI_ShowResults", drillId, hits, kills, accuracy, damage, crits, best, isNewBest, totalShots )
+}
+
+// --------------------------------------------------------------------------
+// Session history (original ServerCallback_HistoryUIAddNewChallenge). The UI
+// VM keeps the list; this adds the weapon the player used.
+
+void function CAT_CL_HistoryAdd( int drillId, int hits, int kills, float accuracy, int damage, int crits, int totalShots, int seconds )
+{
+	string weapon = file.historyWeapon
+	if ( weapon == "" )
+		weapon = CAT_CL_CurrentWeaponClass()
+	RunUIScript( "CAT_UI_HistoryAdd", drillId, hits, kills, accuracy, damage, crits, totalShots, seconds, weapon )
+}
+
+// Main-hand weapon class, falling back to primary slot 0 (the original's choice).
+string function CAT_CL_CurrentWeaponClass()
+{
+	entity player = GetLocalClientPlayer()
+	if ( !IsValid( player ) )
+		return ""
+	entity weapon = player.GetActiveWeapon( eActiveInventorySlot.mainHand )
+	if ( !IsValid( weapon ) )
+		weapon = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 )
+	if ( !IsValid( weapon ) )
+		return ""
+	return weapon.GetWeaponClassName()
+}
+
+// Remembers what the player is holding while the drill runs; by the time the
+// history row arrives the server has already restored the menu loadout.
+void function CAT_CL_SampleWeaponThread()
+{
+	entity player = GetLocalClientPlayer()
+	if ( !IsValid( player ) )
+		return
+	player.EndSignal( "OnDestroy" )
+	player.EndSignal( CAT_CL_SIGNAL_STOP_HUD )
+
+	wait CAT_PRE_START_TIME
+	while ( file.challengeActive )
+	{
+		string weapon = CAT_CL_CurrentWeaponClass()
+		if ( weapon.find( "mp_weapon_" ) == 0 )
+			file.historyWeapon = weapon
+		wait 0.25
+	}
 }
 
 void function CAT_CL_CloseResults()
@@ -317,6 +403,7 @@ void function CAT_CL_CloseResults()
 void function CAT_CL_RestartChallenge( int drillId )
 {
 	file.resultsPending = false
+	CAT_CL_StopMenuCamera()
 	RunUIScript( "CAT_UI_CloseAll" )
 	CAT_CL_StopChallengeHud()
 	CAT_CL_ResetLiveCounters()
@@ -573,9 +660,226 @@ void function CAT_CL_DestroyHint()
 // UI closed the aim trainer menu while idle: tell the player how to get back.
 void function CAT_CL_UI_MenuClosed()
 {
-	if ( !file.inited || file.challengeActive )
+	if ( !file.inited )
+		return
+	CAT_CL_StopMenuCamera()
+	if ( file.challengeActive )
 		return
 	thread CAT_CL_ShowHint( CAT_RELOAD_BIND_TOKEN, "Hold to open the Aim Trainer menu" )
+}
+
+// UI: an idle aim trainer menu was shown (true) / is going away (false).
+void function CAT_CL_UI_MenuCamera( bool on )
+{
+	if ( !file.inited )
+		return
+	if ( on )
+		CAT_CL_StartMenuCamera()
+	else
+		CAT_CL_StopMenuCamera()
+}
+
+// --------------------------------------------------------------------------
+// Menu camera (port of the original CoolCameraOnMenu, which was based on the
+// TDM menu camera; same calls as S21 fs_1v1's FS_1v1_CoolCamera_THREAD).
+// Runs while the idle aim trainer menu is open; stopped on challenge start,
+// results and menu close. The view goes back to the player through
+// ClearMenuCameraEntity when the thread ends.
+
+void function CAT_CL_StartMenuCamera()
+{
+	if ( !file.inited || file.challengeActive || file.resultsPending )
+		return
+	if ( file.cameraRunning )
+		return // already flying; reopening a tab must not restart it
+	entity player = GetLocalClientPlayer()
+	if ( !IsValid( player ) )
+		return
+	file.cameraToken++
+	thread CAT_CL_MenuCamera_Thread( file.cameraToken )
+}
+
+void function CAT_CL_StopMenuCamera()
+{
+	// Mark it stopped right away so a start in the same frame creates a new
+	// camera; the old thread only cleans up its own entities (token check).
+	file.cameraRunning = false
+	entity player = GetLocalClientPlayer()
+	if ( IsValid( player ) )
+		Signal( player, CAT_SIGNAL_STOP_CAMERA )
+}
+
+array<CATCameraSpot> function CAT_CL_GetCameraSpots()
+{
+	array<CATCameraSpot> spots
+	switch ( GetMapName() )
+	{
+		// World's Edge. R5R desertlands spots (the S21 map keeps the old
+		// coordinates for the gameplay spots too).
+		case "mp_rr_desertlands_hu":
+		case "mp_rr_desertlands_64k_x_64k":
+		case "mp_rr_desertlands_64k_x_64k_nx":
+		case "mp_rr_desertlands_64k_x_64k_tt":
+		case "mp_rr_desertlands_mu1":
+		case "mp_rr_desertlands_mu1_tt":
+		case "mp_rr_desertlands_mu2":
+		case "mp_rr_desertlands_holiday":
+			CAT_CL_AddCameraSpot( spots, <10881.2295, 5903.09863, -3176.7959>, <0, -143.321213, 0> )
+			CAT_CL_AddCameraSpot( spots, <9586.79199, 24404.5898, -2019.6366>, <0, -52.6216431, 0> )
+			CAT_CL_AddCameraSpot( spots, <630.249573, 13375.9219, -2736.71948>, <0, -43.2706299, 0> )
+			CAT_CL_AddCameraSpot( spots, <16346.3076, -34468.9492, -1109.32153>, <0, -44.3879509, 0> )
+			CAT_CL_AddCameraSpot( spots, <1133.25562, -20102.9648, -2488.08252>, <0, -24.9140873, 0> )
+			break
+
+		// Firing Range (Classic)
+		case "mp_rr_canyonlands_staging":
+		case "mp_rr_arena_empty":
+			CAT_CL_AddCameraSpot( spots, <32645.04, -9575.77, -25911.94>, <7.71, 91.67, 0> )
+			CAT_CL_AddCameraSpot( spots, <49180.1055, -6836.14502, -23461.8379>, <0, -55.7723808, 0> )
+			CAT_CL_AddCameraSpot( spots, <43552.3203, -1023.86182, -25270.9766>, <0, 20.9528542, 0> )
+			CAT_CL_AddCameraSpot( spots, <30038.0254, -1036.81982, -23369.6035>, <55, -24.2035522, 0> )
+			break
+	}
+	return spots
+}
+
+void function CAT_CL_AddCameraSpot( array<CATCameraSpot> spots, vector origin, vector angles )
+{
+	CATCameraSpot spot
+	spot.origin = origin
+	spot.angles = angles
+	spots.append( spot )
+}
+
+void function CAT_CL_MenuCamera_Thread( int token )
+{
+	entity player = GetLocalClientPlayer()
+	if ( !IsValid( player ) )
+		return
+	player.EndSignal( "OnDestroy" )
+	player.EndSignal( CAT_SIGNAL_STOP_CAMERA )
+
+	file.cameraRunning = true
+
+	array<CATCameraSpot> spots = CAT_CL_GetCameraSpots()
+	bool orbit = spots.len() == 0
+	vector orbitCenter = player.GetOrigin() + <0, 0, 40>
+	float orbitYaw = player.GetAngles().y + 180.0
+
+	vector startPos = <0, 0, 0>
+	vector startAng = <0, 0, 0>
+	if ( orbit )
+	{
+		startPos = CAT_CL_OrbitPos( orbitCenter, orbitYaw )
+		startAng = VectorToAngles( orbitCenter - startPos )
+	}
+	else
+	{
+		spots.randomize()
+		startPos = spots[0].origin
+		startAng = spots[0].angles
+	}
+
+	entity camera = CreateClientSidePointCamera( startPos, startAng, CAT_CAMERA_FOV )
+	if ( !IsValid( camera ) )
+	{
+		file.cameraRunning = false
+		return
+	}
+	camera.SetFOV( CAT_CAMERA_FOV )
+
+	entity mover = null
+	if ( !orbit )
+	{
+		mover = CreateClientsideScriptMover( CAT_CAMERA_MOVER_MODEL, startPos, startAng )
+		if ( IsValid( mover ) )
+			camera.SetParent( mover )
+	}
+
+	player.SetMenuCameraEntity( camera )
+	DoF_SetFarDepth( 6000, 10000 )
+
+	OnThreadEnd(
+		function() : ( player, camera, mover, token )
+		{
+			// Only the newest camera owns the view; an older one that ends late
+			// must not clear the camera that replaced it.
+			if ( token == file.cameraToken )
+			{
+				file.cameraRunning = false
+				if ( IsValid( player ) )
+					player.ClearMenuCameraEntity()
+				DoF_SetNearDepthToDefault()
+				DoF_SetFarDepthToDefault()
+			}
+			if ( IsValid( camera ) )
+				camera.Destroy()
+			if ( IsValid( mover ) )
+				mover.Destroy()
+		}
+	)
+
+	printt( CAT_LOG, "menu camera start", GetMapName(), orbit ? "orbit" : ( spots.len().tostring() + " spots" ) )
+
+	float startTime = Time()
+	float noMenuSince = -1.0
+	bool menuSeen = false
+	int index = 0
+	float nextShot = 0.0 // cut to the first spot right away
+
+	while ( token == file.cameraToken && file.cameraRunning )
+	{
+		// Leak guard: the camera belongs to an open menu.
+		if ( clGlobal.isMenuOpen )
+		{
+			menuSeen = true
+			noMenuSince = -1.0
+		}
+		else if ( menuSeen )
+		{
+			if ( noMenuSince < 0.0 )
+				noMenuSince = Time()
+			else if ( Time() - noMenuSince > CAT_CAMERA_NO_MENU_TIME )
+				break
+		}
+		else if ( Time() - startTime > CAT_CAMERA_ARM_TIMEOUT )
+		{
+			break
+		}
+
+		if ( orbit )
+		{
+			float yaw = orbitYaw + ( Time() - startTime ) * 360.0 / CAT_CAMERA_ORBIT_PERIOD
+			vector orbitPos = CAT_CL_OrbitPos( orbitCenter, yaw )
+			camera.SetOrigin( orbitPos )
+			camera.SetAngles( VectorToAngles( orbitCenter - orbitPos ) )
+			WaitFrame()
+			continue
+		}
+
+		if ( Time() >= nextShot && IsValid( mover ) )
+		{
+			if ( index >= spots.len() )
+				index = 0
+			vector pos = spots[index].origin
+			vector ang = spots[index].angles
+			index++
+
+			mover.SetOrigin( pos )
+			mover.SetAngles( ang )
+			camera.SetOrigin( pos )
+			camera.SetAngles( ang )
+			mover.NonPhysicsMoveTo( pos + AnglesToRight( ang ) * CAT_CAMERA_DRIFT, CAT_CAMERA_DRIFT_TIME, 0, 0 )
+			nextShot = Time() + CAT_CAMERA_SHOT_TIME
+		}
+		wait 0.1
+	}
+}
+
+vector function CAT_CL_OrbitPos( vector center, float yaw )
+{
+	float rad = DegToRad( yaw )
+	return center + < cos( rad ) * CAT_CAMERA_ORBIT_RADIUS, sin( rad ) * CAT_CAMERA_ORBIT_RADIUS, CAT_CAMERA_ORBIT_HEIGHT >
 }
 
 // --------------------------------------------------------------------------
@@ -653,6 +957,7 @@ void function CAT_CL_HoldThread( bool duringChallenge )
 		printt( CAT_LOG, "hold reload: open menu" )
 		CAT_CL_DestroyHint()
 		CAT_CL_SendCommand( "menu 1" )
+		CAT_CL_StartMenuCamera()
 		RunUIScript( "CAT_UI_OpenMainMenu", file.sessionKills )
 		thread CAT_CL_SendLoadoutToUI_Thread()
 	}

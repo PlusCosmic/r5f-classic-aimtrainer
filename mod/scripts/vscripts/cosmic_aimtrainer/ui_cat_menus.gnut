@@ -2,7 +2,7 @@
 //
 // Two UI paths:
 //   PRIMARY  custom menus from resource/ui/menus/cosmic_aimtrainer/*.menu
-//            (main, settings, results), ports of the original R5R
+//            (main, settings, results, history), ports of the original R5R
 //            FRChallenges menus. Created after InitMenus has finished,
 //            because AddMenu needs GetMenu( "MainMenu" ) (InitButtonRCP).
 //   FALLBACK pages inside Flowstate's DevMenu list (ui/menu_dev.nut). Used when
@@ -37,6 +37,8 @@ global function CAT_UI_ShowResults
 global function CAT_UI_CloseResults
 global function CAT_UI_CloseAll
 global function CAT_UI_SetLoadout
+global function CAT_UI_HistoryAdd
+
 
 // weapon selector (or anything else) -> back to the aim trainer main menu
 global function CAT_UI_BackToMainMenu
@@ -45,6 +47,14 @@ const int CAT_DRILL_BUTTONS = 16
 const int CAT_FB_WEAPONS_PER_PAGE = 50
 const float CAT_SETTING_SEND_DELAY = 0.3
 const int CAT_SETTINGS_PAGES = 2
+const int CAT_HISTORY_ROWS = 19        // RowFrame0..18 in history.menu (original AIMTRAINER_HISTORYUI_SERVERS_PER_PAGE)
+const int CAT_FB_HISTORY_MAX = 60      // newest entries listed on the DevMenu history page
+const array<string> CAT_HISTORY_COLUMNS = [ "Name", "Hits", "Kills", "Accuracy", "Damage", "Crits", "Weapon", "Time" ]
+
+// header tabs
+const int CAT_TAB_CHALLENGES = 0
+const int CAT_TAB_HISTORY = 1
+const int CAT_TAB_SETTINGS = 2
 
 // Mirrors CAT_DEFAULT_WEAPON (SERVER-only global in sv_cat_core.gnut).
 const string CAT_DEFAULT_WEAPON_UI = "mp_weapon_wingman"
@@ -74,6 +84,23 @@ struct CATResultsData
 	int totalShots = 0
 }
 
+// One finished challenge (original ResultsHistory). Kept by the UI VM for the
+// whole game session, like the original.
+struct CATHistoryEntry
+{
+	int drillId = 0
+	string drillName
+	int hits = 0
+	int kills = 0
+	float accuracy = 0.0
+	int damage = 0
+	int crits = 0
+	int totalShots = 0
+	int seconds = 0
+	string weapon          // weapon class name
+	int timestamp = 0      // unix time it was added
+}
+
 struct CATWeaponEntry
 {
 	string ref
@@ -90,6 +117,7 @@ struct
 	var mainMenu = null
 	var settingsMenu = null
 	var resultsMenu = null
+	var historyMenu = null       // optional: null -> DevMenu history page
 
 	array<int> buttonDrill       // drill id per DrillButton index, -1 = unused
 	int sessionKills = 0
@@ -115,6 +143,9 @@ struct
 	string optic = ""
 
 	CATResultsData results
+
+	array<CATHistoryEntry> history
+	int historyPage = 0
 } file
 
 // --------------------------------------------------------------------------
@@ -219,6 +250,14 @@ bool function CAT_UI_TryCreateCustomMenus()
 		  "ShotsHitResult", "DamageDoneResult", "CriticalShotsResult", "MainMenuButton", "RestartButton" ] )
 	if ( file.resultsMenu == null )
 		return false
+
+	// Optional (added later than the others): if history.menu is missing the
+	// HISTORY tab opens the DevMenu history page instead.
+	file.historyMenu = CAT_UI_TryAddMenu( "CAT_HistoryMenu", $"resource/ui/menus/cosmic_aimtrainer/history.menu", CAT_InitHistoryMenu,
+		[ "ScreenBlur", "ChallengesTab", "HistoryTab", "SettingsTab", "Summary", "HeaderFrame", "HeaderName", "RowFrame0", "RowName0",
+		  "RowFrame18", "RowTime18", "NoChallengesLbl", "Pages", "NextPageButton", "PrevPageButton" ] )
+	if ( file.historyMenu == null )
+		printt( CAT_LOG, "history menu unavailable, using the DevMenu history page" )
 
 	return true
 }
@@ -390,6 +429,8 @@ bool function CAT_UI_IsOurMenuActive()
 		return false
 	if ( active == file.mainMenu || active == file.settingsMenu || active == file.resultsMenu )
 		return true
+	if ( file.historyMenu != null && active == file.historyMenu )
+		return true
 	return ( "DevMenu" in uiGlobal.menus ) && active == GetMenu( "DevMenu" )
 }
 
@@ -558,6 +599,32 @@ void function CAT_UI_SetLoadout( string weapon0, string weapon1 )
 	}
 }
 
+// Client forwards CAT_CL_HistoryAdd (original HistoryUI_AddNewChallenge).
+void function CAT_UI_HistoryAdd( int drillId, int hits, int kills, float accuracy, int damage, int crits, int totalShots, int seconds, string weapon )
+{
+	CATHistoryEntry e
+	e.drillId = drillId
+	e.drillName = CAT_UI_DrillName( drillId )
+	e.hits = hits
+	e.kills = kills
+	e.accuracy = accuracy
+	e.damage = damage
+	e.crits = crits
+	e.totalShots = totalShots
+	e.seconds = seconds
+	e.weapon = weapon
+	e.timestamp = GetUnixTimestamp()
+	file.history.append( e )
+	file.historyPage = 0
+}
+
+// Client: the idle menu camera follows our idle menus.
+void function CAT_UI_SetMenuCamera( bool on )
+{
+	if ( IsConnected() )
+		RunClientScript( "CAT_CL_UI_MenuCamera", on )
+}
+
 void function CAT_UI_OnCustomMenuError( var err )
 {
 	printt( CAT_LOG, "custom menu error, switching to fallback UI:", err )
@@ -582,6 +649,7 @@ void function CAT_UI_ShowMain()
 			AdvanceMenu( file.mainMenu )
 			CAT_UI_StartWatch( eCATMenuMode.MAIN )
 			CAT_UI_Send( "menu 1" )
+			CAT_UI_SetMenuCamera( true )
 			return
 		}
 		catch ( errMain )
@@ -593,6 +661,29 @@ void function CAT_UI_ShowMain()
 	CAT_FB_Open( CAT_FB_MainPage )
 	CAT_UI_StartWatch( eCATMenuMode.MAIN )
 	CAT_UI_Send( "menu 1" )
+	CAT_UI_SetMenuCamera( true )
+}
+
+// HISTORY tab (custom menu) or the DevMenu history page.
+void function CAT_UI_ShowHistory()
+{
+	if ( CAT_UI_UseCustom() && file.historyMenu != null )
+	{
+		try
+		{
+			CAT_UI_RefreshHistoryMenu()
+			CloseAllMenus()
+			AdvanceMenu( file.historyMenu )
+			return
+		}
+		catch ( errHist )
+		{
+			// Only the history menu is broken: keep the other custom menus.
+			printt( CAT_LOG, "history menu error, using the DevMenu history page:", errHist )
+			file.historyMenu = null
+		}
+	}
+	CAT_FB_Open( CAT_FB_HistoryPage )
 }
 
 void function CAT_UI_ShowSettings()
@@ -628,6 +719,7 @@ void function CAT_UI_StartDrill( int drillId )
 	CAT_UI_StopWatch()
 	CAT_UI_FlushSettings()
 	EmitUISound( "UI_Menu_Accept" )
+	CAT_UI_SetMenuCamera( false )
 	CAT_UI_Send( "start " + drillId.tostring() )
 	CloseAllMenus()
 }
@@ -949,6 +1041,15 @@ void function CAT_UI_InitHeader( var menu )
 	Hud_AddEventHandler( challengesTab, UIE_CLICK, CAT_UI_OnChallengesTabClick )
 	Hud_AddEventHandler( settingsTab, UIE_CLICK, CAT_UI_OnSettingsTabClick )
 
+	// HISTORY sits between the two, as in the original. Optional so an older
+	// deployed main/settings layout without it still works.
+	if ( Hud_HasChild( menu, "HistoryTab" ) )
+	{
+		var historyTab = Hud_GetChild( menu, "HistoryTab" )
+		CAT_UI_SetButtonText( historyTab, "HISTORY" )
+		Hud_AddEventHandler( historyTab, UIE_CLICK, CAT_UI_OnHistoryTabClick )
+	}
+
 	// Original "Global Settings" corner button (same setup as ui/menu_lobby.nut).
 	// Optional: the menu works without it.
 	try
@@ -967,10 +1068,12 @@ void function CAT_UI_InitHeader( var menu )
 	}
 }
 
-void function CAT_UI_SetTabsSelected( var menu, bool challengesSelected )
+void function CAT_UI_SetTabsSelected( var menu, int tab )
 {
-	Hud_SetSelected( Hud_GetChild( menu, "ChallengesTab" ), challengesSelected )
-	Hud_SetSelected( Hud_GetChild( menu, "SettingsTab" ), !challengesSelected )
+	Hud_SetSelected( Hud_GetChild( menu, "ChallengesTab" ), tab == CAT_TAB_CHALLENGES )
+	Hud_SetSelected( Hud_GetChild( menu, "SettingsTab" ), tab == CAT_TAB_SETTINGS )
+	if ( Hud_HasChild( menu, "HistoryTab" ) )
+		Hud_SetSelected( Hud_GetChild( menu, "HistoryTab" ), tab == CAT_TAB_HISTORY )
 }
 
 void function CAT_UI_OnChallengesTabClick( var button )
@@ -986,6 +1089,14 @@ void function CAT_UI_OnSettingsTabClick( var button )
 	if ( GetActiveMenu() == file.settingsMenu )
 		return
 	CAT_UI_ShowSettings()
+}
+
+void function CAT_UI_OnHistoryTabClick( var button )
+{
+	if ( file.historyMenu != null && GetActiveMenu() == file.historyMenu )
+		return
+	CAT_UI_FlushSettings()
+	CAT_UI_ShowHistory()
 }
 
 // Stacked on top of our menu, so backing out of it returns here.
@@ -1065,7 +1176,7 @@ void function CAT_UI_RefreshMainMenu()
 	Hud_SetText( Hud_GetChild( menu, "DrillHint" ), "" )
 	Hud_SetText( Hud_GetChild( menu, "DummiesKilledCounter" ), "Dummies killed this session: " + file.sessionKills.tostring() )
 	Hud_SetText( Hud_GetChild( menu, "CurrentWeapon" ), CAT_UI_CurrentWeaponText() )
-	CAT_UI_SetTabsSelected( menu, true )
+	CAT_UI_SetTabsSelected( menu, CAT_TAB_CHALLENGES )
 }
 
 int function CAT_Main_IndexForButton( var button )
@@ -1185,7 +1296,7 @@ void function CAT_Settings_BindEntry( var menu, string name, string key )
 void function CAT_UI_RefreshSettingsMenu()
 {
 	var menu = file.settingsMenu
-	CAT_UI_SetTabsSelected( menu, false )
+	CAT_UI_SetTabsSelected( menu, CAT_TAB_SETTINGS )
 
 	file.syncing = true
 	try
@@ -1335,6 +1446,125 @@ void function CAT_Settings_OnNavigateBack()
 	CAT_UI_ShowMain()
 }
 
+// ---- history (port of FRChallenges/mainmenu_history.nut) ----
+
+void function CAT_InitHistoryMenu( var menu )
+{
+	AddMenuEventHandler( menu, eUIEvent.MENU_NAVIGATE_BACK, CAT_History_OnNavigateBack )
+	CAT_UI_InitHeader( menu )
+	Hud_AddEventHandler( Hud_GetChild( menu, "PrevPageButton" ), UIE_CLICK, CAT_History_OnPrevPageClick )
+	Hud_AddEventHandler( Hud_GetChild( menu, "NextPageButton" ), UIE_CLICK, CAT_History_OnNextPageClick )
+}
+
+int function CAT_UI_HistoryPageCount()
+{
+	int count = file.history.len()
+	if ( count == 0 )
+		return 1
+	return ( count + CAT_HISTORY_ROWS - 1 ) / CAT_HISTORY_ROWS
+}
+
+// Newest first, CAT_HISTORY_ROWS per page (the original paged too).
+void function CAT_UI_RefreshHistoryMenu()
+{
+	var menu = file.historyMenu
+	CAT_UI_SetTabsSelected( menu, CAT_TAB_HISTORY )
+
+	int count = file.history.len()
+	int pages = CAT_UI_HistoryPageCount()
+	file.historyPage = ClampInt( file.historyPage, 0, pages - 1 )
+	bool empty = count == 0
+
+	// original ShowNoChallengesPlayed
+	Hud_SetVisible( Hud_GetChild( menu, "NoChallengesLbl" ), empty )
+	Hud_SetVisible( Hud_GetChild( menu, "HeaderFrame" ), !empty )
+	foreach ( string col in CAT_HISTORY_COLUMNS )
+		Hud_SetVisible( Hud_GetChild( menu, "Header" + col ), !empty )
+	Hud_SetVisible( Hud_GetChild( menu, "Pages" ), !empty )
+	Hud_SetVisible( Hud_GetChild( menu, "PrevPageButton" ), !empty )
+	Hud_SetVisible( Hud_GetChild( menu, "NextPageButton" ), !empty )
+
+	Hud_SetText( Hud_GetChild( menu, "Pages" ), "  Page: " + ( file.historyPage + 1 ).tostring() + "/" + pages.tostring() + "  " )
+	if ( empty )
+		Hud_SetText( Hud_GetChild( menu, "Summary" ), "Finished challenges show up here." )
+	else
+		Hud_SetText( Hud_GetChild( menu, "Summary" ), count.tostring() + ( count == 1 ? " challenge" : " challenges" ) + " this session, newest first" )
+
+	for ( int row = 0; row < CAT_HISTORY_ROWS; row++ )
+	{
+		int n = file.historyPage * CAT_HISTORY_ROWS + row // 0 = newest
+		bool show = n < count
+		array<string> cells
+		if ( show )
+			cells = CAT_UI_HistoryCells( file.history[ count - 1 - n ] )
+
+		Hud_SetVisible( Hud_GetChild( menu, "RowFrame" + row ), show )
+		for ( int c = 0; c < CAT_HISTORY_COLUMNS.len(); c++ )
+		{
+			var label = Hud_GetChild( menu, "Row" + CAT_HISTORY_COLUMNS[c] + row )
+			Hud_SetText( label, show ? cells[c] : "" )
+			Hud_SetVisible( label, show )
+		}
+	}
+}
+
+// Same order as CAT_HISTORY_COLUMNS.
+array<string> function CAT_UI_HistoryCells( CATHistoryEntry e )
+{
+	array<string> cells
+	cells.append( e.drillName )
+	cells.append( e.hits.tostring() + "/" + e.totalShots.tostring() )
+	cells.append( e.kills.tostring() )
+	cells.append( CAT_UI_AccuracyText( e.accuracy ) )
+	cells.append( e.damage.tostring() )
+	cells.append( e.crits.tostring() )
+	cells.append( CAT_UI_WeaponName( e.weapon ) )
+	cells.append( CAT_UI_DurationText( e.seconds ) )
+	return cells
+}
+
+string function CAT_UI_AccuracyText( float accuracy )
+{
+	return format( "%.1f", accuracy * 100.0 ) + "%"
+}
+
+string function CAT_UI_DurationText( int seconds )
+{
+	if ( seconds <= 0 )
+		return "-"
+	return format( "%d:%02d", seconds / 60, seconds % 60 )
+}
+
+string function CAT_UI_HistoryLine( CATHistoryEntry e )
+{
+	string line = e.drillName + "  |  hits " + e.hits.tostring() + "/" + e.totalShots.tostring() + "  |  " + CAT_UI_AccuracyText( e.accuracy )
+	line += "  |  kills " + e.kills.tostring() + "  |  dmg " + e.damage.tostring() + "  |  crits " + e.crits.tostring()
+	line += "  |  " + CAT_UI_WeaponName( e.weapon ) + "  |  " + CAT_UI_DurationText( e.seconds )
+	return line
+}
+
+void function CAT_History_OnPrevPageClick( var button )
+{
+	if ( file.historyPage <= 0 )
+		return
+	file.historyPage--
+	CAT_UI_RefreshHistoryMenu()
+}
+
+void function CAT_History_OnNextPageClick( var button )
+{
+	if ( file.historyPage >= CAT_UI_HistoryPageCount() - 1 )
+		return
+	file.historyPage++
+	CAT_UI_RefreshHistoryMenu()
+}
+
+// Like the original: back from history returns to the challenges menu.
+void function CAT_History_OnNavigateBack()
+{
+	CAT_UI_ShowMain()
+}
+
 // ---- results ----
 
 void function CAT_InitResultsMenu( var menu )
@@ -1447,6 +1677,10 @@ void function CAT_FB_MainPage()
 	{
 		CAT_FB_Goto( CAT_FB_WeaponPage )
 	} )
+	SetupDevMenu( "History (" + file.history.len().tostring() + ")", void function( var unused )
+	{
+		CAT_FB_Goto( CAT_FB_HistoryPage )
+	} )
 	SetupDevFunc( CAT_UI_LoadoutText(), CAT_FB_Noop )
 	SetupDevFunc( "Dummies killed this session: " + file.sessionKills.tostring(), CAT_FB_Noop )
 	SetupDevFunc( "Close menu (hold Reload to reopen)", void function( var unused )
@@ -1477,6 +1711,34 @@ void function CAT_FB_SettingsPage()
 		CAT_UI_ResetSettings()
 		CAT_FB_Goto( CAT_FB_SettingsPage )
 	} )
+}
+
+// Session history (original History tab), newest first.
+void function CAT_FB_HistoryPage()
+{
+	SetupDevFunc( "<< Back to Aim Trainer", void function( var unused )
+	{
+		CAT_UI_ShowMain()
+	} )
+
+	int count = file.history.len()
+	if ( count == 0 )
+	{
+		SetupDevFunc( "No challenges played yet", CAT_FB_Noop )
+		return
+	}
+
+	string summary = count.tostring() + ( count == 1 ? " challenge" : " challenges" ) + " this session, newest first"
+	if ( count > CAT_FB_HISTORY_MAX )
+		summary += " (showing " + string( CAT_FB_HISTORY_MAX ) + ")"
+	SetupDevFunc( summary, CAT_FB_Noop )
+
+	int shown = 0
+	for ( int i = count - 1; i >= 0 && shown < CAT_FB_HISTORY_MAX; i-- )
+	{
+		SetupDevFunc( CAT_UI_HistoryLine( file.history[i] ), CAT_FB_Noop )
+		shown++
+	}
 }
 
 void function CAT_FB_WeaponPage()

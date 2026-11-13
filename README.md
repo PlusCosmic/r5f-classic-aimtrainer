@@ -77,6 +77,16 @@ A local, git-ignored copy in `reference/` is handy for diffing.
   load and on change.
 - **UI**: custom menus registered after the base `InitMenus()`; if they fail
   to load, the same features are offered as Dev Menu pages.
+- **History**: every challenge that shows results is sent with
+  `CAT_CL_HistoryAdd`; the client adds the weapon it sampled during the drill
+  and the UI VM keeps the list for the game session (HISTORY tab). The
+  original's "Export to .txt" is not ported: `DevTextBufferDumpToFile`
+  returns false and writes nothing on this build (client and dedicated
+  server, checked 2026-11-13).
+- **Menu camera**: while the idle menu is open the client flies a menu camera
+  (`CAT_CL_MenuCamera_Thread`) over per-map spots in `CAT_CL_GetCameraSpots`,
+  or orbits the player on other maps. It stops on challenge start, results
+  and menu close, and ends itself if no menu is open.
 - **Maps**: arena positions are per map in `CAT_LoadMapPositions`. Only
   Firing Range (Classic) has verified positions; S21 map versions use the
   old R5R coordinates (unverified) or fall back to the spawn point. With
@@ -84,8 +94,8 @@ A local, git-ignored copy in `reference/` is handy for diffing.
 
 ## Not ported yet
 
-Armor Swap drill, session history + export, menu camera flyby, RGB HUD,
-play-as-dummy, localization.
+Armor Swap drill, history export, RGB HUD, play-as-dummy, localization. (The original
+weapon selector stopped the menu camera; here it keeps flying.)
 
 ## Credits
 

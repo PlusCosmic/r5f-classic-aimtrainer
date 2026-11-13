@@ -104,6 +104,22 @@ resource/ui/menus/cosmic_aimtrainer/settings.menu
 			ControlName	RuiButton
 			InheritProperties	TabButtonShort
 			scriptID	1
+			xpos	610
+			ypos	18
+			wide	200
+			tall	50
+			zpos	5
+			visible	1
+			enabled	1
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+		}
+
+		HistoryTab
+		{
+			ControlName	RuiButton
+			InheritProperties	TabButtonShort
+			scriptID	2
 			xpos	405
 			ypos	18
 			wide	200

@@ -35,6 +35,7 @@ global struct CATSession
 	int damage = 0
 	int crits = 0
 	int possibleDamage = 0
+	float clockStart = 0.0      // Time() the clock started (0 = still in the pre-start)
 
 	int sessionKills = 0          // across all challenges this connection
 	table<int, int> bestScores = {}   // drill id -> best shots hit (this connection)
@@ -472,6 +473,7 @@ void function CAT_WaitForStart( entity player )
 	RemoveCinematicFlag( player, CE_FLAG_HIDE_PERMANENT_HUD )
 	player.UnfreezeControlsOnServer()
 
+	s.clockStart = Time()
 	s.endTime = Time() + float( s.settings.duration )
 	thread CAT_ChallengeWatcher( player )
 }
@@ -512,7 +514,17 @@ void function CAT_OnChallengeEnd( entity player )
 	s.sessionKills += s.kills
 
 	if ( !s.restarting )
+	{
 		Remote_CallFunction_NonReplay( player, "CAT_CL_ShowResults", s.drillId, s.shotsHit, s.kills, accuracy, s.damage, s.crits, s.bestScores[ s.drillId ], isNewBest, s.totalShots )
+
+		// Session history (original ServerCallback_HistoryUIAddNewChallenge). The
+		// client adds the weapon it sampled during the drill: the loadout is
+		// restored right after this, so a weapon entity sent now would be gone.
+		int seconds = 0
+		if ( s.clockStart > 0.0 )
+			seconds = ClampInt( int( Time() - s.clockStart + 0.5 ), 0, 65535 )
+		Remote_CallFunction_NonReplay( player, "CAT_CL_HistoryAdd", s.drillId, s.shotsHit, s.kills, accuracy, s.damage, s.crits, s.totalShots, seconds )
+	}
 
 	thread CAT_ResultsThread( player )
 }
@@ -559,6 +571,7 @@ void function CAT_ResetStats( CATSession s )
 	s.damage = 0
 	s.crits = 0
 	s.possibleDamage = 0
+	s.clockStart = 0.0
 }
 
 void function CAT_CleanupEntities( CATSession s )
