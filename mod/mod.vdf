@@ -4,7 +4,7 @@
 	"name"			"Aim Trainer (Classic)"
 	"id"			"Cosmic.AimTrainer"
 	"description"	"Port of the R5Reloaded Flowstate Aim Trainer (drills, live stats, results) to R5 Flowstate."
-	"version"		"0.1.0"
+	"version"		"0.2.0"
 	"realm"			"both"
 
 	"ScriptWraps"

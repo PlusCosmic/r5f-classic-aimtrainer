@@ -1,3 +1,5 @@
 *.log
 .vs/
 reference/
+dist/
+release/scripts/gamedir.txt

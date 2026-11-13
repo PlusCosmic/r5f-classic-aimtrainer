@@ -3,8 +3,14 @@
 A port of the R5Reloaded Flowstate Aim Trainer ("Challenges" by Colombia) to
 R5 Flowstate, packaged as a Flowstate mod (`Cosmic.AimTrainer`).
 
-Status: early. Server, client and UI scripts compile and run in game on
-Firing Range (Classic); drills and menus are being tested.
+Status: playable. Tested in game on World's Edge and Firing Range (Classic).
+
+## Install (players)
+
+Download the zip from [Releases](https://github.com/PlusCosmic/r5f-classic-aimtrainer/releases),
+extract it, run `Install.bat`, then `Play Worlds Edge.bat` or
+`Play Firing Range.bat`. See `README.txt` in the zip. Needs R5 Flowstate
+installed and launched once.
 
 ## Layout
 
@@ -18,6 +24,8 @@ Firing Range (Classic); drills and menus are being tested.
 | `tools/deploy.ps1` | Copy the mod + menu layouts into the game and enable the mod |
 | `tools/play.ps1` | Start the dedicated server + client on the aim trainer playlist |
 | `tools/test-dedi.ps1` | Boot only the dedicated server and print script/mod log lines |
+| `tools/package.ps1` | Build `dist/Cosmic-AimTrainer-<version>.zip` (version from `mod.vdf`) |
+| `release/` | What goes in the zip besides the mod: Install/Play/Uninstall `.bat`s, their scripts, `README.txt` |
 
 ## Install / develop
 
